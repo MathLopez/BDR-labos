@@ -1,5 +1,51 @@
 # Rapport
 ## Partie 1
+Client(<u>pseudo</u>, dateNaissance, adresseFacturation, email)
+
+Client.email UNIQUE
+
+Article(<u>id</u>, nom, description, dateSortie, prix, motsCles, note)
+
+Client_Article(<u>id, pseudo</u>, dateAchat)
+
+Client_Article.id reference Article.id
+
+Client_Article.pseudo reference Client.pseudo            
+
+Console(<u>nom</u>, annéeParution, nomFabricant)
+
+Article_Console(<u>id, nom</u>)
+
+Article_Console.nom reference Console.nom
+
+Console.nom NOT NULL
+
+Article_Console.id reference Article.id        
+
+Fabricant(<u>nom</u>)
+
+DLC(<u>id</u>, necessiteJeuDeBase, idJeuVideo)
+
+DLC.id reference Article.id
+
+DLC.idJeuVideo reference JeuVideo.id
+
+JeuVideo(<u>id</u>, ageMinimum, idEditeur)
+
+JeuVideo.id reference Article.id
+
+JeuVideo.idEditeur reference Editeur.id
+
+Genre(<u>nom</u>)
+
+JeuVideo_Genre(<u>nom, id</u>)
+
+JeuVideo_Genre.nom reference Genre.nom
+
+JeuVideo_Genre.id reference JeuVideo.id
+
+Editeur(<u>id</u>, nom, SiegeSocial)
+
 ## Partie 2
 ```sql
 -- Table Client
@@ -206,7 +252,7 @@ Le magasin souhaite conserver l'historique des achats sans connaître la console
 ```sql
 CREATE TABLE Ancien_Achat (
   idAncienAchat INT PRIMARY KEY AUTO_INCREMENT,
-  pseudoClient VARCHAR(255),
+  pseudoClient VARCHAR(80),
   idArticle INT,
   dateAchat DATE,
   FOREIGN KEY (pseudoClient) REFERENCES Client(pseudo),
