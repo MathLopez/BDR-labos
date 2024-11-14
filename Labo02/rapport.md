@@ -6,11 +6,11 @@ Client.email UNIQUE
 
 Article(<u>id</u>, nom, description, dateSortie, prix, motsCles, note)
 
-Client_Article(<u>id, pseudo</u>, dateAchat)
+Achat(<u>id, pseudo</u>, dateAchat)
 
-Client_Article.id reference Article.id
+Achat.id reference Article.id
 
-Client_Article.pseudo reference Client.pseudo            
+Achat.pseudo reference Client.pseudo            
 
 Console(<u>nom</u>, annéeParution, nomFabricant)
 
