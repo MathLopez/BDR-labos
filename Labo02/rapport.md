@@ -1,4 +1,5 @@
 # Rapport
+Auteurs: Nathan Füllemann, Mathéo Lopez
 ## Partie 1
 Client(<u>pseudo</u>, dateNaissance, adresseFacturation, email)
 
@@ -146,6 +147,9 @@ CREATE TABLE Client_Article (
 );
 
 ```
+## Partie 3
+Le script s'execute correctement et sans erreur.
+
 ## Partie 4
 ### 1) Changer le pseudo du client 'YoLo666' en 'BitCoinLover2024'
 
