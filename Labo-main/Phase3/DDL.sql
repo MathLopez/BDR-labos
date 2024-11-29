@@ -1,15 +1,20 @@
--- Création de la base de données
-CREATE DATABASE ShopHabits;
-\c ShopHabits;
+-- Supprimer toutes les tables existantes pour éviter les conflits
+DO $$ 
+BEGIN
+    EXECUTE (
+        SELECT string_agg('DROP TABLE IF EXISTS ' || tablename || ' CASCADE;', ' ')
+        FROM pg_tables
+        WHERE schemaname = 'public'
+    );
+END $$;
 
--- Table Pays
+-- Création des tables
 CREATE TABLE Pays (
     pkPays SERIAL PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
     fraisLivraison NUMERIC(10, 2) NOT NULL
 );
 
--- Table Adresse
 CREATE TABLE Adresse (
     pkAdresse SERIAL PRIMARY KEY,
     rue VARCHAR(255) NOT NULL,
@@ -19,7 +24,6 @@ CREATE TABLE Adresse (
     fkPays INT NOT NULL REFERENCES Pays(pkPays)
 );
 
--- Table Utilisateur
 CREATE TABLE Utilisateur (
     pkUtilisateur SERIAL PRIMARY KEY,
     role VARCHAR(20) NOT NULL CHECK (role IN ('Client', 'Vendeur', 'Admin')),
@@ -32,22 +36,18 @@ CREATE TABLE Utilisateur (
     fkAdresseFacturation INT REFERENCES Adresse(pkAdresse)
 );
 
--- Table Boutique
 CREATE TABLE Boutique (
     pkBoutique SERIAL PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
     urlOrigine VARCHAR(255),
     fkUtilisateur INT NOT NULL REFERENCES Utilisateur(pkUtilisateur)
-        CHECK (EXISTS (SELECT 1 FROM Utilisateur WHERE pkUtilisateur = fkUtilisateur AND role = 'Vendeur'))
 );
 
--- Table Categorie
 CREATE TABLE Categorie (
     pkCategorie SERIAL PRIMARY KEY,
     nom VARCHAR(100) NOT NULL
 );
 
--- Table Produit
 CREATE TABLE Produit (
     pkProduit SERIAL PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
@@ -59,7 +59,6 @@ CREATE TABLE Produit (
     fkBoutique INT NOT NULL REFERENCES Boutique(pkBoutique)
 );
 
--- Table Article
 CREATE TABLE Article (
     pkProduit INT NOT NULL REFERENCES Produit(pkProduit),
     taille VARCHAR(10) NOT NULL,
@@ -67,7 +66,6 @@ CREATE TABLE Article (
     PRIMARY KEY (pkProduit, taille)
 );
 
--- Table Commande
 CREATE TABLE Commande (
     pkCommande SERIAL PRIMARY KEY,
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -77,7 +75,6 @@ CREATE TABLE Commande (
     fkUtilisateur INT NOT NULL REFERENCES Utilisateur(pkUtilisateur)
 );
 
--- Table Contient
 CREATE TABLE Contient (
     fkCommande INT NOT NULL REFERENCES Commande(pkCommande),
     fkArticleProduit INT NOT NULL,
@@ -85,6 +82,14 @@ CREATE TABLE Contient (
     quantité INT NOT NULL,
     PRIMARY KEY (fkCommande, fkArticleProduit, fkArticleTaille),
     FOREIGN KEY (fkArticleProduit, fkArticleTaille) REFERENCES Article(pkProduit, taille)
+);
+
+CREATE TABLE Avis (
+    fkProduit INT NOT NULL REFERENCES Produit(pkProduit),
+    fkUtilisateur INT NOT NULL REFERENCES Utilisateur(pkUtilisateur),
+    note NUMERIC(2, 1) CHECK (note IN (1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)),
+    commentaire TEXT,
+    PRIMARY KEY (fkProduit, fkUtilisateur)
 );
 
 -- Table RéseauSocial
@@ -99,17 +104,26 @@ CREATE TABLE RéseauSocial (
     fkBoutique INT NOT NULL REFERENCES Boutique(pkBoutique)
 );
 
--- Table Avis
-CREATE TABLE Avis (
-    fkProduit INT NOT NULL REFERENCES Produit(pkProduit),
-    fkUtilisateur INT NOT NULL REFERENCES Utilisateur(pkUtilisateur),
-    note NUMERIC(2, 1) CHECK (note IN (1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)),
-    commentaire TEXT,
-    PRIMARY KEY (fkProduit, fkUtilisateur),
-    CHECK (fkUtilisateur IN (
-        SELECT fkUtilisateur 
+CREATE OR REPLACE FUNCTION validate_avis()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Vérification : l'utilisateur doit avoir commandé ou reçu le produit
+    IF NOT EXISTS (
+        SELECT 1
         FROM Commande c
         JOIN Contient ct ON c.pkCommande = ct.fkCommande
-        WHERE ct.fkArticleProduit = fkProduit AND c.état IN ('commandé', 'livré')
-    ))
-);
+        WHERE c.fkUtilisateur = NEW.fkUtilisateur
+          AND ct.fkArticleProduit = NEW.fkProduit
+          AND c.état IN ('commandé', 'livré')
+    ) THEN
+        RAISE EXCEPTION 'Utilisateur % n''a pas commandé ou reçu le produit %', NEW.fkUtilisateur, NEW.fkProduit;
+    END IF;
+
+    RETURN NEW; -- Permet d'insérer la ligne si la vérification passe
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER trigger_validate_avis
+BEFORE INSERT ON Avis
+FOR EACH ROW
+EXECUTE FUNCTION validate_avis();
+

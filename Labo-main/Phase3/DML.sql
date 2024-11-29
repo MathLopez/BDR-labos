@@ -1,3 +1,4 @@
+-- Insertion des données
 -- Pays
 INSERT INTO Pays (nom, fraisLivraison) VALUES
 ('France', 5.00),
@@ -36,6 +37,13 @@ INSERT INTO Commande (date, prix, typePaiement, état, fkUtilisateur) VALUES
 INSERT INTO Contient (fkCommande, fkArticleProduit, fkArticleTaille, quantité) VALUES
 (1, 1, 'M', 2);
 
+-- RéseauSocial
+INSERT INTO RéseauSocial (typeSocial, url, fkBoutique) VALUES
+('Facebook', 'https://facebook.com/shopclaire', 1),
+('Instagram', 'https://instagram.com/shopclaire', 1);
+
 -- Avis
 INSERT INTO Avis (fkProduit, fkUtilisateur, note, commentaire)
 VALUES (1, 1, 4.5, 'Très bon produit');
+
+
