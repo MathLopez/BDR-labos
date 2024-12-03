@@ -15,6 +15,14 @@ WHERE
 2. Les gymnastes qui pratiquent la discipline dont leur entraineur est le spécialiste et qui
 sont originaires du même pays.
 ```sql
+SELECT g.idPersonne AS idGymnaste, pg.nom, pg.prenom
+FROM Gymnaste g
+JOIN Coach c ON g.idCoach = c.idPersonne
+JOIN Personne pg ON g.idPersonne = pg.id
+JOIN Personne pc ON c.idPersonne = pc.id
+JOIN Gymnaste_Discipline gd ON g.idPersonne = gd.idGymnaste
+WHERE gd.codeDiscipline = c.codeDiscipline
+    AND pg.idPays = pc.idPays
 ```
 3. Les coachs nés entre 1981 et 1996 (années comprises) qui entrainent au moins un
 gymnaste plus âgé qu'eux.
