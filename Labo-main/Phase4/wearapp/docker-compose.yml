@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  # Service pour PostgreSQL
+  db:
+    image: postgres:latest
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: motdepasse
+      POSTGRES_DB: wearapp-db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
+    driver: local
