@@ -1,3 +1,5 @@
+--Modifications: ADD on update Casacade / delete aussi /mettre des enum aulieu de check si c est ce qu n a (plus pratiqwue pour apres)
+
 -- Supprimer toutes les tables existantes pour éviter les conflits
 DO $$ 
 BEGIN
@@ -26,6 +28,7 @@ CREATE TABLE Adresse (
 
 CREATE TABLE Utilisateur (
     pkUtilisateur SERIAL PRIMARY KEY,
+    --type enum add
     role VARCHAR(20) NOT NULL CHECK (role IN ('Client', 'Vendeur', 'Admin')),
     nom VARCHAR(100) NOT NULL,
     prenom VARCHAR(100) NOT NULL,
@@ -51,9 +54,10 @@ CREATE TABLE Categorie (
 CREATE TABLE Produit (
     pkProduit SERIAL PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
-    description TEXT,
+    description TEXT NOT NULL,
     dateAjout DATE DEFAULT CURRENT_DATE,
     prix NUMERIC(10, 2) NOT NULL,
+    --type enum add
     sexe VARCHAR(10) CHECK (sexe IN ('Homme', 'Femme', 'Unisexe')),
     fkCategorie INT NOT NULL REFERENCES Categorie(pkCategorie),
     fkBoutique INT NOT NULL REFERENCES Boutique(pkBoutique)
@@ -70,7 +74,9 @@ CREATE TABLE Commande (
     pkCommande SERIAL PRIMARY KEY,
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     prix NUMERIC(10, 2) NOT NULL,
+    --type enum add
     typePaiement VARCHAR(20) NOT NULL CHECK (typePaiement IN ('twint', 'paypal', 'cb')),
+    --type enum add
     état VARCHAR(20) NOT NULL CHECK (état IN ('panier', 'commandé', 'livré')),
     fkUtilisateur INT NOT NULL REFERENCES Utilisateur(pkUtilisateur)
 );
@@ -95,6 +101,7 @@ CREATE TABLE Avis (
 -- Table RéseauSocial
 CREATE TABLE RéseauSocial (
     pkRéseau SERIAL PRIMARY KEY,
+    --type enum add
     typeSocial VARCHAR(20) NOT NULL CHECK (typeSocial IN (
         'Facebook', 'Instagram', 'X', 'TikTok', 'Youtube', 
         'Snapchat', 'LinkedIn', 'Pinterest', 'Telegram', 
@@ -108,6 +115,7 @@ CREATE OR REPLACE FUNCTION validate_avis()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Vérification : l'utilisateur doit avoir commandé ou reçu le produit
+    -- Eviter c et ct car on comprend plus rien 
     IF NOT EXISTS (
         SELECT 1
         FROM Commande c
