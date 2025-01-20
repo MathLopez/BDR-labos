@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gérer les produits</title>
+</head>
+<body>
+    <h1>Gestion des produits</h1>
+    <div id="product-list"></div>
+
+    <h2>Ajouter un produit</h2>
+    <form id="add-product-form">
+        <label for="nom">Nom :</label>
+        <input type="text" id="nom" name="nom" required><br>
+        <label for="description">Description :</label>
+        <textarea id="description" name="description" required></textarea><br>
+        <label for="prix">Prix :</label>
+        <input type="number" id="prix" name="prix" step="0.01" required><br>
+        <label for="sexe">Sexe :</label>
+        <select id="sexe" name="sexe">
+            <option value="Homme">Homme</option>
+            <option value="Femme">Femme</option>
+            <option value="Unisexe">Unisexe</option>
+        </select><br>
+        <label for="categorie">Catégorie :</label>
+        <input type="number" id="categorie" name="categorie" required><br>
+        <label for="boutique">Boutique :</label>
+        <input type="number" id="boutique" name="boutique" required><br>
+        <button type="submit">Ajouter</button>
+    </form>
+    <div id="message"></div>
+
+    <script>
+        // Charger les produits
+        fetch('/produits')
+            .then(response => response.json())
+            .then(data => {
+                const productList = document.getElementById('product-list');
+                if (data.success) {
+                    data.products.forEach(product => {
+                        const productDiv = document.createElement('div');
+                        productDiv.innerHTML = `
+                            <p>${product.nom} - ${product.prix}€ (${product.sexe})</p>
+                            <p>${product.description}</p>
+                        `;
+                        productList.appendChild(productDiv);
+                    });
+                } else {
+                    productList.innerHTML = `<p>Erreur : ${data.error}</p>`;
+                }
+            });
+
+        // Ajouter un produit
+        const form = document.getElementById('add-product-form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newProduct = {
+                nom: form.nom.value,
+                description: form.description.value,
+                prix: form.prix.value,
+                sexe: form.sexe.value,
+                fkCategorie: form.categorie.value,
+                fkBoutique: form.boutique.value,
+            };
+            fetch('/admin/produits', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newProduct)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const messageDiv = document.getElementById('message');
+                    if (data.success) {
+                        messageDiv.innerHTML = `<p>Produit ajouté avec succès.</p>`;
+                        window.location.reload();
+                    } else {
+                        messageDiv.innerHTML = `<p>Erreur : ${data.error}</p>`;
+                    }
+                });
+        });
+    </script>
+</body>
+</html>

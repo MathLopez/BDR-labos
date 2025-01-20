@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Produits</title>
+</head>
+<body>
+    <h1>Nos produits</h1>
+    <div id="products-list"></div>
+    <script>
+        fetch('/produits')
+            .then(response => response.json())
+            .then(data => {
+                const productsDiv = document.getElementById('products-list');
+                if (data.success) {
+                    data.products.forEach(product => {
+                        const productElement = document.createElement('div');
+                        productElement.innerHTML = `
+                            <h2>${product.nom}</h2>
+                            <p>${product.description}</p>
+                            <p>Prix : ${product.prix}€</p>
+                            <p>Sexe : ${product.sexe}</p>
+                        `;
+                        productsDiv.appendChild(productElement);
+                    });
+                } else {
+                    productsDiv.innerHTML = `<p>Erreur : ${data.error}</p>`;
+                }
+            });
+    </script>
+</body>
+</html>

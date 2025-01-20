@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des boutiques</title>
+</head>
+<body>
+    <h1>Vos boutiques</h1>
+    <div id="boutiques-list"></div>
+
+    <h2>Ajouter une boutique</h2>
+    <form id="add-boutique-form">
+        <label for="nom">Nom :</label>
+        <input type="text" id="nom" name="nom" required><br>
+        <label for="urlOrigine">URL d'origine :</label>
+        <input type="url" id="urlOrigine" name="urlOrigine"><br>
+        <button type="submit">Ajouter</button>
+    </form>
+    <div id="message"></div>
+
+    <script>
+        // Charger les boutiques
+        fetch('/boutiques/mine')
+            .then(response => response.json())
+            .then(data => {
+                const boutiquesList = document.getElementById('boutiques-list');
+                if (data.success) {
+                    data.boutiques.forEach(boutique => {
+                        const boutiqueDiv = document.createElement('div');
+                        boutiqueDiv.innerHTML = `
+                            <p>${boutique.nom} - <a href="${boutique.urlOrigine}" target="_blank">${boutique.urlOrigine}</a></p>
+                        `;
+                        boutiquesList.appendChild(boutiqueDiv);
+                    });
+                } else {
+                    boutiquesList.innerHTML = `<p>Erreur : ${data.error}</p>`;
+                }
+            });
+
+        // Ajouter une boutique
+        const form = document.getElementById('add-boutique-form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newBoutique = {
+                nom: form.nom.value,
+                urlOrigine: form.urlOrigine.value,
+            };
+            fetch('/boutiques', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newBoutique)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const messageDiv = document.getElementById('message');
+                    if (data.success) {
+                        messageDiv.innerHTML = `<p>Boutique ajoutée avec succès.</p>`;
+                        window.location.reload();
+                    } else {
+                        messageDiv.innerHTML = `<p>Erreur : ${data.error}</p>`;
+                    }
+                });
+        });
+    </script>
+</body>
+</html>

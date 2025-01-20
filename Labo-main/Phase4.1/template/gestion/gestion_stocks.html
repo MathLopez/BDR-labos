@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des stocks</title>
+</head>
+<body>
+    <h1>Gestion des stocks</h1>
+    <div id="stock-list"></div>
+
+    <h2>Ajouter un article</h2>
+    <form id="add-stock-form">
+        <label for="produit">Produit :</label>
+        <input type="number" id="produit" name="produit" required><br>
+        <label for="taille">Taille :</label>
+        <input type="text" id="taille" name="taille" required><br>
+        <label for="quantite">Quantité :</label>
+        <input type="number" id="quantite" name="quantite" required><br>
+        <button type="submit">Ajouter</button>
+    </form>
+    <div id="message"></div>
+
+    <script>
+        // Charger les stocks
+        fetch('/boutiques/stocks')
+            .then(response => response.json())
+            .then(data => {
+                const stockList = document.getElementById('stock-list');
+                if (data.success) {
+                    data.stocks.forEach(stock => {
+                        const stockDiv = document.createElement('div');
+                        stockDiv.innerHTML = `
+                            <p>Produit : ${stock.fkProduit}</p>
+                            <p>Taille : ${stock.taille}</p>
+                            <p>Quantité : ${stock.quantiteDisponible}</p>
+                            <hr>
+                        `;
+                        stockList.appendChild(stockDiv);
+                    });
+                } else {
+                    stockList.innerHTML = `<p>Erreur : ${data.error}</p>`;
+                }
+            });
+
+        // Ajouter un article
+        const form = document.getElementById('add-stock-form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newStock = {
+                produit: form.produit.value,
+                taille: form.taille.value,
+                quantite: form.quantite.value,
+            };
+            fetch('/boutiques/stocks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newStock)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const messageDiv = document.getElementById('message');
+                    if (data.success) {
+                        messageDiv.innerHTML = `<p>Stock ajouté avec succès.</p>`;
+                        window.location.reload();
+                    } else {
+                        messageDiv.innerHTML = `<p>Erreur : ${data.error}</p>`;
+                    }
+                });
+        });
+    </script>
+</body>
+</html>

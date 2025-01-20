@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boutiques</title>
+</head>
+<body>
+    <h1>Nos boutiques</h1>
+    <ul id="boutiques-list"></ul>
+    <script>
+        fetch('/boutiques')
+            .then(response => response.json())
+            .then(data => {
+                const boutiquesList = document.getElementById('boutiques-list');
+                if (data.success) {
+                    data.boutiques.forEach(boutique => {
+                        const listItem = document.createElement('li');
+                        listItem.innerHTML = `
+                            <strong>${boutique.nom}</strong><br>
+                            <a href="${boutique.urlOrigine}" target="_blank">Visiter</a>
+                        `;
+                        boutiquesList.appendChild(listItem);
+                    });
+                } else {
+                    boutiquesList.innerHTML = `<li>Erreur : ${data.error}</li>`;
+                }
+            });
+    </script>
+</body>
+</html>
