@@ -1,5 +1,6 @@
-install
-image docker
+## Instalation
+### Crée la DB
+install image docker
 ```
 version: '3.8'
 services:
@@ -35,4 +36,31 @@ psql -U admin -d ecommerce -f /tmp/DDL.sqlß
 psql -U admin -d ecommerce -f /tmp/DML.sql
 ```
 
+Connection a la base de donnée
+```
+psql -h localhost -U admin -d ecommerce
+```
+### Lancer l api
+Créer un environnement virtuel :
+```
+python -m venv venv
+```
+Activer l'environnement virtuel :
+Sur Windows :
+```
+venv\\Scripts\\activate
+```
+Sur macOS/Linux :
+```
+source venv/bin/activate
+```
+installer les dépendances
+```
+pip install -r requirements.txt
+```
+Démarer le serveur Flask
+```
+python app.py
+``` 
+Puis sur http://127.0.0.1:5000/
 

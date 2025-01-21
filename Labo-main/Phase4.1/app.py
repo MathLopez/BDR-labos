@@ -1,7 +1,19 @@
 from flask import Flask, request, jsonify
-from db_connection import get_db_connection
+import psycopg2
 
 app = Flask(__name__)
+# Configuration de la base de données
+DB_CONFIG = {
+    "dbname": "ecommerce",
+    "user": "admin",
+    "password": "admin123",
+    "host": "localhost",
+    "port": "5432",
+}
+
+# Connexion à la base de données
+def get_db_connection():
+    return psycopg2.connect(**DB_CONFIG)
 
 # -------------------------
 # Routes pour les utilisateurs
