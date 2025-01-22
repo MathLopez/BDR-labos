@@ -10,6 +10,7 @@ END $$;
 
 -- Création des types ENUM
 CREATE TYPE RoleEnum AS ENUM ('Acheteur', 'Vendeur', 'Admin');
+CREATE TYPE TypeProduitEnum AS ENUM ('Chaussure', 'Habit', 'Accessoire');
 CREATE TYPE SexeEnum AS ENUM ('Homme', 'Femme', 'Unisexe');
 CREATE TYPE TypePaiementEnum AS ENUM ('twint', 'paypal', 'cb');
 CREATE TYPE EtatEnum AS ENUM ('panier', 'commandé', 'livré');
@@ -66,6 +67,7 @@ CREATE TABLE Produit (
     dateAjout DATE DEFAULT CURRENT_DATE,
     prix NUMERIC(10, 2) NOT NULL,
     sexe SexeEnum,
+    typeProduit TypeProduitEnum NOT NULL DEFAULT 'Accessoire',
     fkCategorie INT NOT NULL REFERENCES Categorie(pkCategorie) ON UPDATE CASCADE ON DELETE CASCADE,
     fkBoutique INT NOT NULL REFERENCES Boutique(pkBoutique) ON UPDATE CASCADE ON DELETE CASCADE
 );

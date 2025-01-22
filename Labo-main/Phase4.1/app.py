@@ -190,9 +190,7 @@ def cart():
 
 @app.route('/boutique/<int:boutique_id>')
 def boutique(boutique_id):
-    if session.get('role') != 'vendeur':
-        return redirect(url_for('profile'))
-
+   
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -276,7 +274,7 @@ def login():
             if role == 'Acheteur':
                 return redirect('/profile/acheteur')
             elif role == 'Vendeur':
-                return redirect('/profile/vendeur')
+                return redirect('/vendeur')
             elif role == 'Admin':
                 return redirect('/admin')
             else:
@@ -307,17 +305,34 @@ def signup():
             cursor.execute("""
                 INSERT INTO Utilisateur (role, nom, prenom, email, motDePasse, dateNaissance)
                 VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING pkUtilisateur
             """, (role, nom, prenom, email, password, date_naissance))
+            
+            # Récupérer l'ID de l'utilisateur créé
+            user_id = cursor.fetchone()[0]
+
+            # Si l'utilisateur est un vendeur, créer une boutique associée
+            if role == 'Vendeur':
+                cursor.execute("""
+                    INSERT INTO Boutique (nom, fkUtilisateur)
+                    VALUES (%s, %s)
+                """, (f"Boutique de {prenom} {nom}", user_id))
+            
+            # Valider les transactions
             conn.commit()
             flash("Compte créé avec succès ! Vous pouvez maintenant vous connecter.", "success")
             return redirect('/login')
         except psycopg2.Error as e:
             print(f"Database error: {e}")
             flash("Erreur lors de la création du compte : " + str(e), "danger")
+            conn.rollback()
         finally:
+            cursor.close()
             conn.close()
 
     return render_template('signup.html')
+
+
 @app.route('/logout')
 def logout():
     session.clear()
@@ -376,9 +391,66 @@ def admin_dashboard():
     cursor.execute("SELECT avis.fkutilisateur, avis.fkproduit, commentaire FROM Avis")
     avis = cursor.fetchall()
 
+    cursor.execute("SELECT pkCategorie, nom FROM Categorie")
+    categories = cursor.fetchall()
+
     conn.close()
 
-    return render_template('admin_dashboard.html', utilisateurs=utilisateurs, articles=articles, boutiques=boutiques, avis=avis)
+    return render_template(
+        'admin_dashboard.html', 
+        utilisateurs=utilisateurs, 
+        articles=articles, 
+        boutiques=boutiques, 
+        avis=avis, 
+        categories=categories
+    )
+
+@app.route('/admin/add_categorie', methods=['POST'])
+def add_categorie():
+    if session.get('role') != 'Admin':
+        return redirect(url_for('profile'))
+
+    # Récupérer le nom de la catégorie depuis le formulaire
+    nom_categorie = request.form.get('nom_categorie')
+
+    if not nom_categorie:
+        flash("Le nom de la catégorie est obligatoire.", "error")
+        return redirect('/admin')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Vérifier si la catégorie existe déjà
+    cursor.execute("SELECT 1 FROM Categorie WHERE nom = %s", (nom_categorie,))
+    if cursor.fetchone():
+        flash("Cette catégorie existe déjà.", "error")
+        conn.close()
+        return redirect('/admin')
+
+    # Insérer la nouvelle catégorie
+    cursor.execute("INSERT INTO Categorie (nom) VALUES (%s)", (nom_categorie,))
+    conn.commit()
+    conn.close()
+
+    flash("Catégorie ajoutée avec succès.", "success")
+    return redirect('/admin')
+
+@app.route('/admin/delete_categorie/<int:pkCategorie>', methods=['GET'])
+def delete_categorie(pkCategorie):
+    if session.get('role') != 'Admin':
+        return redirect(url_for('profile'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Supprimer la catégorie
+    cursor.execute("DELETE FROM Categorie WHERE pkCategorie = %s", (pkCategorie,))
+    conn.commit()
+    conn.close()
+
+    flash("Catégorie supprimée avec succès.", "success")
+    return redirect('/admin')
+
 
 @app.route('/admin/delete_utilisateur/<int:id>', methods=['GET'])
 def delete_utilisateur(id):
@@ -929,6 +1001,238 @@ def get_countries():
             "success": False,
             "error": str(e)
         })
+# Route principale pour le vendeur
+@app.route('/vendeur')
+def vendeur():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Récupérer les informations de la boutique
+    cur.execute("""
+        SELECT pkBoutique, nom, urlOrigine 
+        FROM Boutique 
+        WHERE fkUtilisateur = %s
+    """, (session['user_id'],))
+    boutique = cur.fetchone()
+
+    # Récupérer les produits de la boutique
+    cur.execute("""
+        SELECT pkProduit, nom, description, prix, sexe 
+        FROM Produit 
+        WHERE fkBoutique = %s
+    """, (boutique[0],))
+    produits = cur.fetchall()
+
+    # Récupérer les commandes associées à la boutique
+    cur.execute("""
+        SELECT Commande.pkCommande, Commande.date, Commande.prix, Commande.état 
+        FROM Commande
+        JOIN Contient ON Contient.fkCommande = Commande.pkCommande
+        JOIN Article ON Article.pkProduit = Contient.fkArticleProduit
+        JOIN Produit ON Produit.pkProduit = Article.pkProduit
+        WHERE Produit.fkBoutique = %s
+    """, (boutique[0],))
+    commandes = cur.fetchall()
+
+    # Récupérer les avis sur les produits de la boutique
+    cur.execute("""
+        SELECT Avis.fkProduit, Avis.note, Avis.commentaire, Produit.nom 
+        FROM Avis
+        JOIN Produit ON Produit.pkProduit = Avis.fkProduit
+        WHERE Produit.fkBoutique = %s
+    """, (boutique[0],))
+    avis = cur.fetchall()
+
+    cur.execute("SELECT unnest(enum_range(NULL::TypeSocialEnum))")
+    types_reseaux = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+
+    return render_template('vendeur.html', boutique=boutique, produits=produits, commandes=commandes, avis=avis, types_reseaux=types_reseaux)
+
+# Route pour configurer la boutique
+@app.route('/vendeur/configurer', methods=['POST'])
+def configurer_boutique():
+    nom_boutique = request.form['nom_boutique']
+    url_origine = request.form['url']
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE Boutique 
+        SET nom = %s, urlOrigine = %s 
+        WHERE fkUtilisateur = %s
+    """, (nom_boutique, url_origine, session['user_id']))
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    flash("Configuration de la boutique mise à jour avec succès.", "success")
+    return redirect(url_for('vendeur'))
+
+# Route pour ajouter un produit
+@app.route('/vendeur/produit/ajouter', methods=['GET', 'POST'])
+def ajouter_produit():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Récupérer la boutique associée à l'utilisateur connecté
+    cur.execute("""
+        SELECT pkBoutique, nom 
+        FROM Boutique 
+        WHERE fkUtilisateur = %s
+    """, (session['user_id'],))
+    boutique = cur.fetchone()
+
+    if not boutique:
+        flash("Aucune boutique trouvée pour cet utilisateur.", "error")
+        return redirect('/vendeur')
+
+    # Récupérer toutes les catégories disponibles
+    cur.execute("SELECT pkCategorie, nom FROM Categorie")
+    categories = cur.fetchall()
+
+    if request.method == 'POST':
+        # Récupérer les données du formulaire
+        nom = request.form['nom_produit']
+        prix = request.form['prix_produit']
+        description = request.form['description_produit']
+        sexe = request.form.get('sexe_produit')  # Homme/Femme/Unisexe
+        categorie_id = request.form.get('categorie')  # ID de la catégorie sélectionnée
+        type_produit = request.form.get('type_produit')  # Type de produit (Chaussure, Habit, Accessoire)
+
+        # Validation des données du formulaire
+        if not categorie_id:
+            flash("Veuillez sélectionner une catégorie.", "error")
+            return redirect('/vendeur/produit/ajouter')
+
+        # Insertion du produit
+        cur.execute("""
+            INSERT INTO Produit (nom, description, prix, sexe, fkCategorie, fkBoutique)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING pkProduit
+        """, (nom, description, prix, sexe, categorie_id, boutique[0]))
+        produit_id = cur.fetchone()[0]
+
+        # Gestion des tailles et quantités si le produit est une chaussure ou un habit
+        tailles = []
+        if type_produit == 'Chaussure':
+            tailles = [str(i) for i in range(36, 46)]
+        elif type_produit == 'Habit':
+            tailles = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+
+        if tailles:
+            for taille in tailles:
+                quantite = request.form.get(f'quantite_{taille}', 0)
+                cur.execute("""
+                    INSERT INTO Article (pkProduit, taille, quantiteDisponible)
+                    VALUES (%s, %s, %s)
+                """, (produit_id, taille, quantite))
+
+        conn.commit()
+        flash("Produit ajouté avec succès !", "success")
+        return redirect('/vendeur')
+
+    cur.close()
+    conn.close()
+    return render_template('ajouter_produit.html', boutique=boutique, categories=categories)
+
+
+
+# Route pour supprimer un produit
+@app.route('/vendeur/produit/supprimer/<int:produit_id>')
+def supprimer_produit(produit_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM Produit WHERE pkProduit = %s", (produit_id,))
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    flash("Produit supprimé avec succès.", "success")
+    return redirect(url_for('vendeur'))
+
+# Route pour valider une commande
+@app.route('/vendeur/commande/valider/<int:commande_id>')
+def valider_commande(commande_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE Commande 
+        SET état = 'livré' 
+        WHERE pkCommande = %s
+    """, (commande_id,))
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    flash("Commande validée avec succès.", "success")
+    return redirect(url_for('vendeur'))
+
+@app.route('/vendeur/reseaux', methods=['GET', 'POST'])
+def gestion_reseaux_sociaux():
+    if 'user_id' not in session:
+        flash("Veuillez vous connecter.", "danger")
+        return redirect('/login')
+
+    user_id = session['user_id']
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Vérifier si l'utilisateur a une boutique
+        cursor.execute("SELECT pkBoutique FROM Boutique WHERE fkUtilisateur = %s", (user_id,))
+        boutique = cursor.fetchone()
+
+        if not boutique:
+            flash("Aucune boutique associée à cet utilisateur.", "danger")
+            return redirect('/vendeur')
+
+        boutique_id = boutique[0]
+        
+        # Récupérer les types de réseaux sociaux disponibles
+        cursor.execute("SELECT unnest(enum_range(NULL::TypeSocialEnum))")
+        types_reseaux = cursor.fetchall()
+
+        if request.method == 'POST':
+            type_social = request.form['type_social']
+            url = request.form['url']
+
+            # Insérer le nouveau réseau social
+            cursor.execute("""
+                INSERT INTO RéseauSocial (typeSocial, url, fkBoutique)
+                VALUES (%s, %s, %s)
+            """, (type_social, url, boutique_id))
+            conn.commit()
+            flash("Réseau social ajouté avec succès.", "success")
+            return render_template('vendeur.html')
+
+        # Récupérer les réseaux sociaux existants
+        cursor.execute("""
+            SELECT pkRéseau, typeSocial, url 
+            FROM RéseauSocial 
+            WHERE fkBoutique = %s
+        """, (boutique_id,))
+        reseaux_sociaux = cursor.fetchall()
+
+    except Exception as e:
+        flash(f"Erreur lors de la gestion des réseaux sociaux : {e}", "danger")
+        reseaux_sociaux = []
+        types_reseaux = []
+    finally:
+        conn.close()
+
+    return render_template('vendeur.html', reseaux_sociaux=[
+        {'id': r[0], 'type_social': r[1], 'url': r[2]} for r in reseaux_sociaux
+    ], types_reseaux=[r[0] for r in types_reseaux])  # Passer les types de réseaux sociaux disponibles
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=8080)
