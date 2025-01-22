@@ -63,8 +63,5 @@ Démarer le serveur Flask
 python app.py
 ``` 
 Puis sur http://127.0.0.1:5000/
-### Lancer le serveur
-```
-python -m http.server
-```
+
 

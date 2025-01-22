@@ -1,5 +1,7 @@
-from flask import Flask, request, jsonify
+from flask import Flask, render_template, jsonify, request, make_response, redirect
 import psycopg2
+from datetime import date, timedelta
+import json
 
 app = Flask(__name__)
 # Configuration de la base de données
@@ -13,328 +15,255 @@ DB_CONFIG = {
 
 # Connexion à la base de données
 def get_db_connection():
-    return psycopg2.connect(**DB_CONFIG)
-
-# -------------------------
-# Routes pour les utilisateurs
-# -------------------------
-
-@app.route("/utilisateur/inscription", methods=["POST"])
-def inscription():
-    data = request.json
-    query = """
-    INSERT INTO Utilisateur (role, nom, prenom, email, dateNaissance, motDePasse, fkAdresseLivraison, fkAdresseFacturation)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING pkUtilisateur;
-    """
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (
-            data['role'], data['nom'], data['prenom'], data['email'], 
-            data['dateNaissance'], data['motDePasse'], data['fkAdresseLivraison'], data['fkAdresseFacturation']
-        ))
-        user_id = cur.fetchone()['pkUtilisateur']
-        conn.commit()
-        cur.close()
+        return psycopg2.connect(**DB_CONFIG)
+    except psycopg2.Error as e:
+        print(f"Erreur de connexion à la base de données : {e}")
+        raise
+
+
+@app.route('/')
+def home():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Récupérer les 5 boutiques
+    cursor.execute("SELECT pkBoutique, nom FROM Boutique LIMIT 5")
+    boutiques = cursor.fetchall()
+
+    # Récupérer les 5 articles les plus achetés d'hier
+    yesterday = date.today() - timedelta(days=1)
+    cursor.execute("""
+        SELECT p.pkProduit, p.nom, p.prix
+        FROM Produit p
+        JOIN Contient c ON p.pkProduit = c.fkArticleProduit
+        JOIN Commande cmd ON cmd.pkCommande = c.fkCommande
+        WHERE cmd.date::date = %s
+        GROUP BY p.pkProduit
+        ORDER BY SUM(c.quantité) DESC
+        LIMIT 5
+    """, (yesterday,))
+    articles = cursor.fetchall()
+
+    # Si pas d'articles populaires, récupérer des articles aléatoires
+    if not articles:
+        cursor.execute("SELECT pkProduit, nom, prix FROM Produit ORDER BY RANDOM() LIMIT 5")
+        articles = cursor.fetchall()
+
+    conn.close()
+    return render_template('home.html', boutiques=boutiques, articles=articles)
+
+@app.route('/boutiques')
+def boutiques():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT pkBoutique, nom FROM Boutique")
+    boutiques = cursor.fetchall()
+    conn.close()
+    return render_template('boutiques.html', boutiques=boutiques)
+
+@app.route('/articles', methods=['GET'])
+def articles():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Récupérer toutes les catégories disponibles
+    cursor.execute("SELECT nom FROM Categorie")
+    categories = [row[0] for row in cursor.fetchall()]  # Liste des catégories disponibles
+
+    # Récupérer les articles en fonction de la catégorie sélectionnée
+    category = request.args.get('category')  # Paramètre GET "category" depuis l'URL
+    if category:
+        cursor.execute("""
+            SELECT p.pkProduit, p.nom, p.prix
+            FROM Produit p
+            JOIN Categorie c ON p.fkCategorie = c.pkCategorie
+            WHERE c.nom = %s
+        """, (category,))
+    else:
+        cursor.execute("SELECT pkProduit, nom, prix FROM Produit")
+
+    articles = cursor.fetchall()
+    conn.close()
+    
+    # Rendre le template en passant à la fois les articles et les catégories
+    return render_template('articles.html', articles=articles, categories=categories, selected_category=category)
+
+@app.route('/article/<int:product_id>', methods=['GET'])
+def product(product_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Récupérer les détails du produit
+    cursor.execute("""
+        SELECT p.pkProduit, p.nom, p.description, p.prix, c.nom AS category_name
+        FROM Produit p
+        JOIN Categorie c ON p.fkCategorie = c.pkCategorie
+        WHERE p.pkProduit = %s
+    """, (product_id,))
+    product = cursor.fetchone()
+
+    # Récupérer les tailles disponibles
+    cursor.execute("""
+        SELECT taille, quantiteDisponible
+        FROM Article
+        WHERE pkProduit = %s
+    """, (product_id,))
+    sizes = cursor.fetchall()
+
+    conn.close()
+    return render_template('product.html', product=product, sizes=sizes, product_category=product[4])
+
+@app.route('/add-to-cart', methods=['POST'])
+def add_to_cart():
+    product_id = request.form['product_id']
+    size = request.form['size']
+    quantity = int(request.form['quantity'])
+
+    # Lire le panier actuel dans les cookies
+    cart = request.cookies.get('cart')
+    if cart:
+        cart = json.loads(cart)
+    else:
+        cart = []
+
+    # Ajouter l'article au panier (vérifier si le produit et la taille existent déjà)
+    for item in cart:
+        if item['product_id'] == product_id and item['size'] == size:
+            item['quantity'] += quantity
+            break
+    else:
+        cart.append({'product_id': product_id, 'size': size, 'quantity': quantity})
+
+    # Sauvegarder le panier mis à jour dans les cookies
+    response = make_response(redirect('/cart'))
+    response.set_cookie('cart', json.dumps(cart), max_age=30*24*60*60)  # 30 jours
+    return response
+
+@app.route('/remove-from-cart', methods=['POST'])
+def remove_from_cart():
+    product_id = request.form['product_id']
+    size = request.form['size']
+
+    # Lire le panier actuel dans les cookies
+    cart = request.cookies.get('cart')
+    if cart:
+        cart = json.loads(cart)
+    else:
+        cart = []
+
+    # Supprimer l'article correspondant
+    cart = [item for item in cart if not (item['product_id'] == product_id and item['size'] == size)]
+
+    # Sauvegarder le panier mis à jour dans les cookies
+    response = make_response(redirect('/cart'))
+    response.set_cookie('cart', json.dumps(cart), max_age=30*24*60*60)  # 30 jours
+    return response
+
+
+@app.route('/cart', methods=['GET'])
+def cart():
+    cart = request.cookies.get('cart')
+    if cart:
+        cart = json.loads(cart)
+    else:
+        cart = []
+
+    # Récupérer les détails des produits à partir de l'ID des produits
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    product_details = []
+
+    for item in cart:
+        cursor.execute("""
+            SELECT pkProduit, nom, prix FROM Produit WHERE pkProduit = %s
+        """, (item['product_id'],))
+        product = cursor.fetchone()
+        if product:
+            product_details.append({
+                "product_id": product[0],
+                "name": product[1],
+                "price": product[2],
+                "size": item['size'],
+                "quantity": item['quantity'],
+                "total_price": product[2] * item['quantity']
+            })
+
+    conn.close()
+
+    return render_template('cart.html', cart=product_details)
+
+from collections import defaultdict
+
+@app.route('/boutique/<int:boutique_id>', methods=['GET'])
+def boutique(boutique_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Récupérer les informations de la boutique
+    cursor.execute("""
+        SELECT nom, urlOrigine
+        FROM Boutique
+        WHERE pkBoutique = %s
+    """, (boutique_id,))
+    boutique = cursor.fetchone()
+
+    if not boutique:
         conn.close()
-        return jsonify({"success": True, "user_id": user_id})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return "Boutique introuvable", 404
 
-@app.route("/utilisateur/connexion", methods=["POST"])
-def connexion():
-    data = request.json
-    query = """
-    SELECT pkUtilisateur, nom, prenom, role 
-    FROM Utilisateur 
-    WHERE email = %s AND motDePasse = %s;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (data['email'], data['motDePasse']))
-        user = cur.fetchone()
-        cur.close()
-        conn.close()
-        if user:
-            return jsonify({"success": True, "user": user})
-        return jsonify({"success": False, "message": "Email ou mot de passe incorrect."})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    # Récupérer les articles vendus, triés par catégorie
+    cursor.execute("""
+        SELECT c.nom AS categorie, p.pkProduit, p.nom, p.prix
+        FROM Produit p
+        JOIN Categorie c ON p.fkCategorie = c.pkCategorie
+        WHERE p.fkBoutique = %s
+        ORDER BY c.nom, p.nom
+    """, (boutique_id,))
+    articles = cursor.fetchall()
 
-# -------------------------
-# Routes pour les produits
-# -------------------------
+    # Organiser les articles par catégorie
+    articles_par_categorie = defaultdict(list)
+    for categorie, pkProduit, nom, prix in articles:
+        articles_par_categorie[categorie].append({
+            "pkProduit": pkProduit,
+            "nom": nom,
+            "prix": prix
+        })
 
-@app.route("/produits", methods=["GET"])
-def get_products():
-    query = """
-    SELECT p.pkProduit, p.nom, p.description, p.prix, c.nom AS categorie, b.nom AS boutique
-    FROM Produit p
-    JOIN Categorie c ON p.fkCategorie = c.pkCategorie
-    JOIN Boutique b ON p.fkBoutique = b.pkBoutique;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query)
-        products = cur.fetchall()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "products": products})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    # Récupérer les réseaux sociaux de la boutique
+    cursor.execute("""
+        SELECT typeSocial, url
+        FROM RéseauSocial
+        WHERE fkBoutique = %s
+    """, (boutique_id,))
+    reseaux = cursor.fetchall()
 
-@app.route("/produit/<int:produit_id>", methods=["GET"])
-def get_product(produit_id):
-    query = """
-    SELECT p.pkProduit, p.nom, p.description, p.prix, p.dateAjout, c.nom AS categorie, b.nom AS boutique
-    FROM Produit p
-    JOIN Categorie c ON p.fkCategorie = c.pkCategorie
-    JOIN Boutique b ON p.fkBoutique = b.pkBoutique
-    WHERE p.pkProduit = %s;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (produit_id,))
-        product = cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "product": product})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    # Récupérer les 5 derniers avis sur la boutique
+    cursor.execute("""
+        SELECT a.note, a.commentaire, u.nom, u.prenom
+        FROM Avis a
+        JOIN Produit p ON a.fkProduit = p.pkProduit
+        JOIN Utilisateur u ON a.fkUtilisateur = u.pkUtilisateur
+        WHERE p.fkBoutique = %s
+        ORDER BY a.note DESC
+        LIMIT 5
+    """, (boutique_id,))
+    avis = cursor.fetchall()
 
-@app.route("/produit", methods=["POST"])
-def add_product():
-    data = request.json
-    query = """
-    INSERT INTO Produit (nom, description, prix, sexe, fkCategorie, fkBoutique)
-    VALUES (%s, %s, %s, %s, %s, %s) RETURNING pkProduit;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (
-            data['nom'], data['description'], data['prix'], 
-            data['sexe'], data['fkCategorie'], data['fkBoutique']
-        ))
-        product_id = cur.fetchone()['pkProduit']
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "product_id": product_id})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    conn.close()
 
-# -------------------------
-# Routes pour les commandes
-# -------------------------
+    return render_template('boutique.html', 
+                           boutique=boutique, 
+                           articles_par_categorie=articles_par_categorie, 
+                           reseaux=reseaux, 
+                           avis=avis)
 
-@app.route("/commande", methods=["POST"])
-def create_order():
-    data = request.json
-    query = """
-    INSERT INTO Commande (prix, typePaiement, état, fkUtilisateur)
-    VALUES (%s, %s, %s, %s) RETURNING pkCommande;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (
-            data['prix'], data['typePaiement'], data['état'], data['fkUtilisateur']
-        ))
-        order_id = cur.fetchone()['pkCommande']
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "order_id": order_id})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
 
-@app.route("/commande/<int:utilisateur_id>", methods=["GET"])
-def get_orders(utilisateur_id):
-    query = """
-    SELECT c.pkCommande, c.date, c.prix, c.état, p.nom AS produit, co.quantité
-    FROM Commande c
-    JOIN Contient co ON c.pkCommande = co.fkCommande
-    JOIN Produit p ON co.fkArticleProduit = p.pkProduit
-    WHERE c.fkUtilisateur = %s;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (utilisateur_id,))
-        orders = cur.fetchall()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "orders": orders})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
 
-# -------------------------
-# Routes pour les avis
-# -------------------------
+@app.route('/login')
+def login():
+    return render_template('login.html')
 
-@app.route("/avis/<int:produit_id>", methods=["GET"])
-def get_reviews(produit_id):
-    query = """
-    SELECT a.note, a.commentaire, u.nom, u.prenom
-    FROM Avis a
-    JOIN Utilisateur u ON a.fkUtilisateur = u.pkUtilisateur
-    WHERE a.fkProduit = %s;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (produit_id,))
-        reviews = cur.fetchall()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "reviews": reviews})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route("/avis", methods=["POST"])
-def add_review():
-    data = request.json
-    query = """
-    INSERT INTO Avis (fkProduit, fkUtilisateur, note, commentaire)
-    VALUES (%s, %s, %s, %s);
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (
-            data['fkProduit'], data['fkUtilisateur'], 
-            data['note'], data.get('commentaire', None)
-        ))
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "message": "Avis ajouté avec succès."})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-# -------------------------
-# Routes pour les boutiques
-# -------------------------
-
-@app.route("/boutiques", methods=["GET"])
-def get_boutiques():
-    query = """
-    SELECT b.pkBoutique, b.nom, b.urlOrigine, u.nom AS propriétaire
-    FROM Boutique b
-    JOIN Utilisateur u ON b.fkUtilisateur = u.pkUtilisateur;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query)
-        boutiques = cur.fetchall()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "boutiques": boutiques})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route("/boutique/<int:boutique_id>", methods=["GET"])
-def get_boutique(boutique_id):
-    query = """
-    SELECT b.pkBoutique, b.nom, b.urlOrigine, u.nom AS propriétaire
-    FROM Boutique b
-    JOIN Utilisateur u ON b.fkUtilisateur = u.pkUtilisateur
-    WHERE b.pkBoutique = %s;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (boutique_id,))
-        boutique = cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "boutique": boutique})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route("/boutique", methods=["POST"])
-def add_boutique():
-    data = request.json
-    query = """
-    INSERT INTO Boutique (nom, urlOrigine, fkUtilisateur)
-    VALUES (%s, %s, %s) RETURNING pkBoutique;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (
-            data['nom'], data.get('urlOrigine', None), data['fkUtilisateur']
-        ))
-        boutique_id = cur.fetchone()['pkBoutique']
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "boutique_id": boutique_id})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-# -------------------------
-# Routes pour les catégories
-# -------------------------
-
-@app.route("/categories", methods=["GET"])
-def get_categories():
-    query = """
-    SELECT pkCategorie, nom
-    FROM Categorie;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query)
-        categories = cur.fetchall()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "categories": categories})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route("/categorie/<int:categorie_id>", methods=["GET"])
-def get_category(categorie_id):
-    query = """
-    SELECT pkCategorie, nom
-    FROM Categorie
-    WHERE pkCategorie = %s;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (categorie_id,))
-        category = cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "category": category})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route("/categorie", methods=["POST"])
-def add_category():
-    data = request.json
-    query = """
-    INSERT INTO Categorie (nom)
-    VALUES (%s) RETURNING pkCategorie;
-    """
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(query, (data['nom'],))
-        category_id = cur.fetchone()['pkCategorie']
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "category_id": category_id})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True, host='127.0.0.1', port=8080)
