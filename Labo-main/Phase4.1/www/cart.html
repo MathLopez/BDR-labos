@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Panier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .cart-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-info {
+            flex-grow: 1;
+        }
+
+        .item-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quantity-btn {
+            padding: 5px 10px;
+            border: none;
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+
+        .remove-btn {
+            color: red;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+
+        .cart-summary {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+        }
+
+        .checkout-btn {
+            width: 100%;
+            padding: 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        .checkout-btn:hover {
+            background-color: #45a049;
+        }
+
+        .empty-cart {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="cart-container">
+        <h1>Mon Panier</h1>
+        <div id="cart-items">
+            <!-- Items will be dynamically inserted here -->
+        </div>
+        <div class="cart-summary">
+            <h3>Résumé de la commande</h3>
+            <p>Sous-total: <span id="subtotal">0.00</span> €</p>
+            <p>Frais de livraison: <span id="shipping">0.00</span> €</p>
+            <h3>Total: <span id="total">0.00</span> €</h3>
+            <button class="checkout-btn" id="checkout-btn">Procéder au paiement</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCart();
+        });
+
+        function loadCart() {
+            fetch('/cart/items')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayCart(data.items);
+                        updateTotals(data.summary);
+                    } else {
+                        showEmptyCart();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showEmptyCart();
+                });
+        }
+
+        function displayCart(items) {
+            const cartContainer = document.getElementById('cart-items');
+            if (items.length === 0) {
+                showEmptyCart();
+                return;
+            }
+
+            cartContainer.innerHTML = items.map(item => `
+                <div class="cart-item" data-id="${item.pkProduit}" data-taille="${item.taille}">
+                    <div class="item-info">
+                        <h3>${item.nom}</h3>
+                        <p>Taille: ${item.taille}</p>
+                        <p>Prix: ${item.prix} €</p>
+                    </div>
+                    <div class="item-actions">
+                        <div class="quantity-control">
+                            <button class="quantity-btn" onclick="updateQuantity(${item.pkProduit}, '${item.taille}', -1)">-</button>
+                            <span>${item.quantité}</span>
+                            <button class="quantity-btn" onclick="updateQuantity(${item.pkProduit}, '${item.taille}', 1)">+</button>
+                        </div>
+                        <button class="remove-btn" onclick="removeItem(${item.pkProduit}, '${item.taille}')">
+                            Supprimer
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showEmptyCart() {
+            const cartContainer = document.getElementById('cart-items');
+            cartContainer.innerHTML = `
+                <div class="empty-cart">
+                    <h2>Votre panier est vide</h2>
+                    <p>Continuez vos achats pour ajouter des articles</p>
+                </div>
+            `;
+            updateTotals({ subtotal: 0, shipping: 0, total: 0 });
+        }
+
+        function updateTotals(summary) {
+            document.getElementById('subtotal').textContent = summary.subtotal.toFixed(2);
+            document.getElementById('shipping').textContent = summary.shipping.toFixed(2);
+            document.getElementById('total').textContent = summary.total.toFixed(2);
+        }
+
+        function updateQuantity(productId, size, change) {
+            fetch('/cart/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    productId: productId,
+                    size: size,
+                    change: change
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadCart();
+                }
+            });
+        }
+
+        function removeItem(productId, size) {
+            fetch('/cart/remove', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    productId: productId,
+                    size: size
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadCart();
+                }
+            });
+        }
+
+        document.getElementById('checkout-btn').addEventListener('click', function() {
+            fetch('/cart/checkout', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/checkout';
+                } else {
+                    alert(data.error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

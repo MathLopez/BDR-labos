@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil Utilisateur</title>
+    <style>
+        .profile-section {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+        .orders-section {
+            margin-top: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-section">
+        <h1>Mon Profil</h1>
+        
+        <!-- Informations personnelles -->
+        <section id="personal-info">
+            <h2>Informations personnelles</h2>
+            <form id="profile-form">
+                <div>
+                    <label for="nom">Nom:</label>
+                    <input type="text" id="nom" name="nom" required>
+                </div>
+                <div>
+                    <label for="prenom">Prénom:</label>
+                    <input type="text" id="prenom" name="prenom" required>
+                </div>
+                <div>
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div>
+                    <label for="dateNaissance">Date de naissance:</label>
+                    <input type="date" id="dateNaissance" name="dateNaissance" required>
+                </div>
+                <button type="submit">Mettre à jour</button>
+            </form>
+        </section>
+
+        <!-- Changement de mot de passe -->
+        <section id="password-section">
+            <h2>Changer le mot de passe</h2>
+            <form id="password-form">
+                <div>
+                    <label for="currentPassword">Mot de passe actuel:</label>
+                    <input type="password" id="currentPassword" name="currentPassword" required>
+                </div>
+                <div>
+                    <label for="newPassword">Nouveau mot de passe:</label>
+                    <input type="password" id="newPassword" name="newPassword" required>
+                </div>
+                <div>
+                    <label for="confirmPassword">Confirmer le mot de passe:</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" required>
+                </div>
+                <button type="submit">Changer le mot de passe</button>
+            </form>
+        </section>
+
+        <!-- Historique des commandes -->
+        <section id="orders-section" class="orders-section">
+            <h2>Mes commandes</h2>
+            <div id="orders-list"></div>
+        </section>
+    </div>
+
+    <div id="message"></div>
+
+    <script>
+        // Charger les informations du profil
+        function loadProfile() {
+            fetch('/profile/info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('nom').value = data.user.nom;
+                        document.getElementById('prenom').value = data.user.prenom;
+                        document.getElementById('email').value = data.user.email;
+                        document.getElementById('dateNaissance').value = data.user.dateNaissance;
+                    }
+                });
+        }
+
+        // Charger l'historique des commandes
+        function loadOrders() {
+            fetch('/profile/orders')
+                .then(response => response.json())
+                .then(data => {
+                    const ordersList = document.getElementById('orders-list');
+                    if (data.success && data.orders.length > 0) {
+                        const ordersHtml = data.orders.map(order => `
+                            <div class="order-item">
+                                <p>Commande #${order.pkCommande}</p>
+                                <p>Date: ${new Date(order.date).toLocaleDateString()}</p>
+                                <p>Prix: ${order.prix}€</p>
+                                <p>État: ${order.état}</p>
+                            </div>
+                        `).join('');
+                        ordersList.innerHTML = ordersHtml;
+                    } else {
+                        ordersList.innerHTML = '<p>Aucune commande trouvée</p>';
+                    }
+                });
+        }
+
+        // Gestionnaire de mise à jour du profil
+        document.getElementById('profile-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            fetch('/profile/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = data.success 
+                    ? `<p class="success">Profil mis à jour avec succès!</p>`
+                    : `<p class="error">Erreur: ${data.error}</p>`;
+            });
+        });
+
+        // Gestionnaire de changement de mot de passe
+        document.getElementById('password-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            if (formData.get('newPassword') !== formData.get('confirmPassword')) {
+                document.getElementById('message').innerHTML = 
+                    '<p class="error">Les mots de passe ne correspondent pas</p>';
+                return;
+            }
+
+            fetch('/profile/password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messageDiv = document.getElementById('message');
+                messageDiv.innerHTML = data.success 
+                    ? `<p class="success">Mot de passe mis à jour avec succès!</p>`
+                    : `<p class="error">Erreur: ${data.error}</p>`;
+                if (data.success) {
+                    e.target.reset();
+                }
+            });
+        });
+
+        // Charger les données au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProfile();
+            loadOrders();
+        });
+    </script>
+</body>
+</html>

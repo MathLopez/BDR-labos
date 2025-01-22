@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .checkout-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .checkout-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .checkout-form, .order-summary {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .form-section {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .payment-methods {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .payment-method {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .payment-method.selected {
+            border-color: #4CAF50;
+            background-color: #f0f7f0;
+        }
+
+        .payment-method img {
+            height: 40px;
+            margin-bottom: 10px;
+        }
+
+        .payment-details {
+            margin-top: 20px;
+        }
+
+        .order-summary {
+            position: sticky;
+            top: 20px;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .submit-btn:hover {
+            background-color: #45a049;
+        }
+
+        .error {
+            color: red;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+
+        .success-message {
+            text-align: center;
+            padding: 20px;
+            background-color: #dff0d8;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="checkout-container">
+        <div class="checkout-form">
+            <h2>Finaliser la commande</h2>
+            
+            <div class="success-message" id="success-message">
+                Paiement traité avec succès! Redirection vers la confirmation...
+            </div>
+
+            <form id="checkout-form">
+                <div class="form-section">
+                    <h3>Adresse de livraison</h3>
+                    <div class="form-group">
+                        <label for="street">Rue</label>
+                        <input type="text" id="street" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="city">Ville</label>
+                        <input type="text" id="city" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="postal">Code postal</label>
+                        <input type="text" id="postal" required>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Méthode de paiement</h3>
+                    <div class="payment-methods">
+                        <div class="payment-method" data-method="cb">
+                            <img src="https://via.placeholder.com/80x40?text=CB" alt="Credit Card">
+                            <div>Carte bancaire</div>
+                        </div>
+                        <div class="payment-method" data-method="paypal">
+                            <img src="https://via.placeholder.com/80x40?text=PayPal" alt="PayPal">
+                            <div>PayPal</div>
+                        </div>
+                        <div class="payment-method" data-method="twint">
+                            <img src="https://via.placeholder.com/80x40?text=Twint" alt="Twint">
+                            <div>Twint</div>
+                        </div>
+                    </div>
+
+                    <div class="payment-details" id="cb-details">
+                        <div class="form-group">
+                            <label for="card-number">Numéro de carte</label>
+                            <input type="text" id="card-number" placeholder="1234 5678 9012 3456">
+                        </div>
+                        <div class="form-group">
+                            <label for="expiry">Date d'expiration</label>
+                            <input type="text" id="expiry" placeholder="MM/YY">
+                        </div>
+                        <div class="form-group">
+                            <label for="cvv">CVV</label>
+                            <input type="text" id="cvv" placeholder="123">
+                        </div>
+                    </div>
+
+                    <div class="payment-details" id="paypal-details" style="display: none;">
+                        <p>Vous allez être redirigé vers PayPal pour finaliser le paiement.</p>
+                    </div>
+
+                    <div class="payment-details" id="twint-details" style="display: none;">
+                        <p>Scannez le QR code avec votre application Twint</p>
+                        <img src="https://via.placeholder.com/200x200?text=QR+Code" alt="QR Code">
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn">Payer maintenant</button>
+            </form>
+        </div>
+
+        <div class="order-summary">
+            <h3>Résumé de la commande</h3>
+            <div id="order-items">
+                <!-- Items will be dynamically inserted here -->
+            </div>
+            <div class="order-item">
+                <span>Sous-total</span>
+                <span id="subtotal">0.00 €</span>
+            </div>
+            <div class="order-item">
+                <span>Frais de livraison</span>
+                <span id="shipping">0.00 €</span>
+            </div>
+            <div class="order-item">
+                <strong>Total</strong>
+                <strong id="total">0.00 €</strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadOrderSummary();
+            setupPaymentMethods();
+        });
+
+        function loadOrderSummary() {
+            fetch('/checkout/summary')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayOrderSummary(data.items, data.summary);
+                    }
+                });
+        }
+
+        function displayOrderSummary(items, summary) {
+            const itemsContainer = document.getElementById('order-items');
+            itemsContainer.innerHTML = items.map(item => `
+                <div class="order-item">
+                    <span>${item.nom} (${item.quantité}x)</span>
+                    <span>${(item.prix * item.quantité).toFixed(2)} €</span>
+                </div>
+            `).join('');
+
+            document.getElementById('subtotal').textContent = `${summary.subtotal.toFixed(2)} €`;
+            document.getElementById('shipping').textContent = `${summary.shipping.toFixed(2)} €`;
+            document.getElementById('total').textContent = `${summary.total.toFixed(2)} €`;
+        }
+
+        function setupPaymentMethods() {
+            const methods = document.querySelectorAll('.payment-method');
+            const details = {
+                'cb': document.getElementById('cb-details'),
+                'paypal': document.getElementById('paypal-details'),
+                'twint': document.getElementById('twint-details')
+            };
+
+            methods.forEach(method => {
+                method.addEventListener('click', () => {
+                    methods.forEach(m => m.classList.remove('selected'));
+                    method.classList.add('selected');
+                    
+                    Object.values(details).forEach(d => d.style.display = 'none');
+                    details[method.dataset.method].style.display = 'block';
+                });
+            });
+
+            // Select credit card by default
+            methods[0].click();
+        }
+
+        document.getElementById('checkout-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const selectedMethod = document.querySelector('.payment-method.selected').dataset.method;
+            const formData = {
+                paymentMethod: selectedMethod,
+                address: {
+                    street: document.getElementById('street').value,
+                    city: document.getElementById('city').value,
+                    postal: document.getElementById('postal').value
+                }
+            };
+
+            fetch('/checkout/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('success-message').style.display = 'block';
+                    setTimeout(() => {
+                        window.location.href = '/order/confirmation/' + data.orderId;
+                    }, 2000);
+                } else {
+                    alert('Erreur: ' + data.error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
