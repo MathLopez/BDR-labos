@@ -21,6 +21,9 @@ services:
 volumes:
   postgres_data:
 ```
+```
+ docker-compose up --build   
+```
 Copie des fichier sql dans l image postgress
 ```
 docker cp ./sql/DML.sql postgres_db:/tmp/DML.sql
@@ -32,7 +35,7 @@ docker exec -it postgres_db bash
 ```
 Execution des scripts 
 ```
-psql -U admin -d ecommerce -f /tmp/DDL.sqlß
+psql -U admin -d ecommerce -f /tmp/DDL.sql
 psql -U admin -d ecommerce -f /tmp/DML.sql
 ```
 

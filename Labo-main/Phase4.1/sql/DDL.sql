@@ -9,7 +9,7 @@ BEGIN
 END $$;
 
 -- Création des types ENUM
-CREATE TYPE RoleEnum AS ENUM ('Client', 'Vendeur', 'Admin');
+CREATE TYPE RoleEnum AS ENUM ('Acheteur', 'Vendeur', 'Admin');
 CREATE TYPE SexeEnum AS ENUM ('Homme', 'Femme', 'Unisexe');
 CREATE TYPE TypePaiementEnum AS ENUM ('twint', 'paypal', 'cb');
 CREATE TYPE EtatEnum AS ENUM ('panier', 'commandé', 'livré');

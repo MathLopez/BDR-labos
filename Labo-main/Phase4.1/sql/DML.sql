@@ -10,7 +10,7 @@ INSERT INTO Adresse (rue, no, ville, codePostal, fkPays) VALUES
 
 -- Utilisateur
 INSERT INTO Utilisateur (role, nom, prenom, email, dateNaissance, motDePasse, fkAdresseLivraison, fkAdresseFacturation) VALUES
-('Client', 'Dupont', 'Jean', 'jean.dupont@example.com', '1980-05-15', 'password123', 1, 1),
+('Acheteur', 'Dupont', 'Jean', 'jean.dupont@example.com', '1980-05-15', 'password123', 1, 1),
 ('Vendeur', 'Martin', 'Claire', 'claire.martin@example.com', '1990-10-20', 'securepwd456', 1, 1);
 
 -- Boutique

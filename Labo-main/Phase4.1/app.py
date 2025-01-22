@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request, make_response, redirect, flash,session,url_for
 from datetime import date, timedelta
+from functools import wraps
 
 import psycopg2
 import json
@@ -23,6 +24,16 @@ def get_db_connection():
     except psycopg2.Error as e:
         print(f"Erreur de connexion à la base de données : {e}")
         raise
+
+def role_required(role):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if 'role' not in session or session['role'] != role:
+                return redirect(url_for('login'))
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 @app.route('/')
@@ -198,8 +209,15 @@ def cart():
 
 from collections import defaultdict
 
-@app.route('/boutique/<int:boutique_id>', methods=['GET'])
+@app.route('/boutique/<int:boutique_id>')
 def boutique(boutique_id):
+    if session.get('role') != 'vendeur':
+        return redirect(url_for('profile'))
+    
+    boutique = next((b for b in boutiques if b['id'] == boutique_id), None)
+    if not boutique or boutique['proprietaire_id'] != session['user_id']:
+        return "Boutique introuvable ou accès refusé", 403
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -275,7 +293,7 @@ def login():
 
         # Vérifier si l'utilisateur existe et récupérer son rôle
         cursor.execute("""
-            SELECT pkUtilisateur, role
+            SELECT pkUtilisateur, role, email
             FROM Utilisateur
             WHERE email = %s AND motDePasse = %s
         """, (email, password))
@@ -283,19 +301,25 @@ def login():
         conn.close()
 
         if user:
-            user_id, role = user
+            user_id, role, email = user
             # Stocker le rôle dans un cookie
-            response = make_response(redirect('/'))
-            response.set_cookie('user_role', role, max_age=30*24*60*60)  # Cookie valide 30 jours
-            response.set_cookie('user_id', str(user_id), max_age=30*24*60*60)  # Stocker aussi l'ID utilisateur
-            
+            session['user_id'] = user_id
+            session['role'] = role
+            session['email'] = email
+               # Redirection selon le rôle
+            if role == 'Acheteur':
+                return redirect('/profile/acheteur')
+            elif role == 'Vendeur':
+                return redirect('/profile/vendeur')
+            elif role == 'Admin':
+                return redirect('/admin')
+            else:
+                flash('Identifiants invalides', 'danger')
+
         else:
             flash("Email ou mot de passe incorrect.", "danger")
             return render_template('login.html')
 
-        session['email'] = email
-        session['role'] = role  
-        return redirect(url_for('home'))
     return render_template('login.html')
 
 @app.route('/signup', methods=['GET', 'POST'])
@@ -334,9 +358,154 @@ def logout():
 
 @app.route('/profile')
 def profile():
-    if 'email' not in session:
+    if 'user_id' not in session:
         return redirect(url_for('login'))
-    return render_template('profile.html', email=session['email'], role=session.get('role'))
+    
+    role = session['role']
+    if role == 'Acheteur':
+        return redirect(url_for('profile_acheteur'))
+    elif role == 'Vendeur':
+        return redirect(url_for('boutique', boutique_id=utilisateur_boutique_id(session['user_id'])))
+    elif role == 'Admin':
+        return redirect(url_for('admin_dashboard'))
+    
+@app.route('/profile/acheteur')
+def profile_acheteur():
+    # Vérification que l'utilisateur est connecté et a le rôle 'Acheteur'
+    if 'role' not in session or session.get('role') != 'Acheteur':
+        return redirect(url_for('home'))  # Rediriger vers la page d'accueil si l'utilisateur n'est pas connecté ou n'est pas un acheteur
+
+    # Connexion à la base de données pour récupérer les commandes de l'acheteur
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Récupérer les commandes de l'utilisateur connecté
+    cursor.execute("""
+        SELECT c.pkCommande, c.date, c.prix, c.état
+        FROM Commande c
+        WHERE c.fkUtilisateur = %s
+        ORDER BY c.date DESC
+    """, (session['user_id'],))
+    user_commandes = cursor.fetchall()
+
+    conn.close()
+
+    # Passer les commandes récupérées et l'utilisateur (session) au template
+    return render_template('profile_acheteur.html', commandes=user_commandes, user=session)
+
+
+@app.route('/admin')
+def admin_dashboard():
+    # Vérifier si l'utilisateur est un admin
+    if session.get('role') != 'Admin':  # Assurez-vous que le rôle est en majuscule et correspond à celui stocké en session
+        return redirect(url_for('profile'))  # Rediriger l'utilisateur vers son profil s'il n'est pas un admin
+
+    # Connexion à la base de données
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Récupérer tous les utilisateurs
+    cursor.execute("SELECT pkUtilisateur, prenom, nom, email, role FROM Utilisateur")
+    utilisateurs = cursor.fetchall()
+
+    # Récupérer tous les articles
+    cursor.execute("SELECT pkProduit, nom, prix FROM Produit")
+    articles = cursor.fetchall()
+
+    # Récupérer toutes les boutiques
+    cursor.execute("SELECT pkBoutique, nom FROM Boutique")
+    boutiques = cursor.fetchall()
+
+    # Récupérer tous les avis
+    cursor.execute("SELECT avis.fkutilisateur, avis.fkproduit, commentaire FROM Avis")
+    avis = cursor.fetchall()
+
+    conn.close()
+
+    # Passer les données récupérées au template
+    return render_template('admin_dashboard.html', utilisateurs=utilisateurs, articles=articles, boutiques=boutiques, avis=avis)
+
+
+# Route pour supprimer un utilisateur
+@app.route('/admin/delete_utilisateur/<int:id>', methods=['GET'])
+def delete_utilisateur(id):
+    # Vérifier si l'utilisateur est un admin
+    if session.get('role') != 'Admin':
+        return redirect(url_for('profile'))
+    
+    # Connexion à la base de données
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Supprimer l'utilisateur
+    cursor.execute("DELETE FROM Utilisateur WHERE pkUtilisateur = %s", (id,))
+    conn.commit()
+    
+    # Fermer la connexion et rediriger vers le tableau de bord
+    conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+# Route pour supprimer un article
+@app.route('/admin/delete_article/<int:id>', methods=['GET'])
+def delete_article(id):
+    # Vérifier si l'utilisateur est un admin
+    if session.get('role') != 'Admin':
+        return redirect(url_for('profile'))
+    
+    # Connexion à la base de données
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Supprimer l'article
+    cursor.execute("DELETE FROM Produit WHERE pkProduit = %s", (id,))
+    conn.commit()
+    
+    # Fermer la connexion et rediriger vers le tableau de bord
+    conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+# Route pour supprimer une boutique
+@app.route('/admin/delete_boutique/<int:id>', methods=['GET'])
+def delete_boutique(id):
+    # Vérifier si l'utilisateur est un admin
+    if session.get('role') != 'Admin':
+        return redirect(url_for('profile'))
+    
+    # Connexion à la base de données
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Supprimer la boutique
+    cursor.execute("DELETE FROM Boutique WHERE PkBoutique = %s", (id,))
+    conn.commit()
+    
+    # Fermer la connexion et rediriger vers le tableau de bord
+    conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+# Route pour supprimer un avis
+@app.route('/admin/delete_avis/<int:fkProduit>/<int:fkUtilisateur>', methods=['GET'])
+def delete_avis(fkProduit, fkUtilisateur):
+    # Vérifier si l'utilisateur est un admin
+    if session.get('role') != 'Admin':
+        return redirect(url_for('profile'))
+    
+    # Connexion à la base de données
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Supprimer l'avis en utilisant fkProduit et fkUtilisateur
+    cursor.execute("""
+        DELETE FROM Avis 
+        WHERE fkProduit = %s AND fkUtilisateur = %s
+    """, (fkProduit, fkUtilisateur))
+    conn.commit()
+    
+    # Fermer la connexion et rediriger vers le tableau de bord
+    conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=8080)
