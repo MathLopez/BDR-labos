@@ -1,7 +1,6 @@
-from flask import Flask, render_template, jsonify, request, make_response, redirect, flash,session,url_for
+from flask import Flask, render_template, jsonify, request, make_response, redirect, flash, session, url_for, send_from_directory
 from datetime import date, timedelta
 from functools import wraps
-
 import psycopg2
 import json
 import os
@@ -17,7 +16,6 @@ DB_CONFIG = {
     "port": "5432",
 }
 
-# Connexion à la base de données
 def get_db_connection():
     try:
         return psycopg2.connect(**DB_CONFIG)
@@ -35,17 +33,14 @@ def role_required(role):
         return wrapper
     return decorator
 
-
 @app.route('/')
 def home():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Récupérer les 5 boutiques
     cursor.execute("SELECT pkBoutique, nom FROM Boutique LIMIT 5")
     boutiques = cursor.fetchall()
 
-    # Récupérer les 5 articles les plus achetés d'hier
     yesterday = date.today() - timedelta(days=1)
     cursor.execute("""
         SELECT p.pkProduit, p.nom, p.prix
@@ -59,7 +54,6 @@ def home():
     """, (yesterday,))
     articles = cursor.fetchall()
 
-    # Si pas d'articles populaires, récupérer des articles aléatoires
     if not articles:
         cursor.execute("SELECT pkProduit, nom, prix FROM Produit ORDER BY RANDOM() LIMIT 5")
         articles = cursor.fetchall()
@@ -81,12 +75,10 @@ def articles():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Récupérer toutes les catégories disponibles
     cursor.execute("SELECT nom FROM Categorie")
-    categories = [row[0] for row in cursor.fetchall()]  # Liste des catégories disponibles
+    categories = [row[0] for row in cursor.fetchall()]
 
-    # Récupérer les articles en fonction de la catégorie sélectionnée
-    category = request.args.get('category')  # Paramètre GET "category" depuis l'URL
+    category = request.args.get('category')
     if category:
         cursor.execute("""
             SELECT p.pkProduit, p.nom, p.prix
@@ -99,8 +91,7 @@ def articles():
 
     articles = cursor.fetchall()
     conn.close()
-    
-    # Rendre le template en passant à la fois les articles et les catégories
+
     return render_template('articles.html', articles=articles, categories=categories, selected_category=category)
 
 @app.route('/article/<int:product_id>', methods=['GET'])
@@ -108,7 +99,6 @@ def product(product_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Récupérer les détails du produit
     cursor.execute("""
         SELECT p.pkProduit, p.nom, p.description, p.prix, c.nom AS category_name
         FROM Produit p
@@ -117,7 +107,6 @@ def product(product_id):
     """, (product_id,))
     product = cursor.fetchone()
 
-    # Récupérer les tailles disponibles
     cursor.execute("""
         SELECT taille, quantiteDisponible
         FROM Article
@@ -134,14 +123,12 @@ def add_to_cart():
     size = request.form['size']
     quantity = int(request.form['quantity'])
 
-    # Lire le panier actuel dans les cookies
     cart = request.cookies.get('cart')
     if cart:
         cart = json.loads(cart)
     else:
         cart = []
 
-    # Ajouter l'article au panier (vérifier si le produit et la taille existent déjà)
     for item in cart:
         if item['product_id'] == product_id and item['size'] == size:
             item['quantity'] += quantity
@@ -149,9 +136,8 @@ def add_to_cart():
     else:
         cart.append({'product_id': product_id, 'size': size, 'quantity': quantity})
 
-    # Sauvegarder le panier mis à jour dans les cookies
     response = make_response(redirect('/cart'))
-    response.set_cookie('cart', json.dumps(cart), max_age=30*24*60*60)  # 30 jours
+    response.set_cookie('cart', json.dumps(cart), max_age=30*24*60*60)
     return response
 
 @app.route('/remove-from-cart', methods=['POST'])
@@ -159,21 +145,17 @@ def remove_from_cart():
     product_id = request.form['product_id']
     size = request.form['size']
 
-    # Lire le panier actuel dans les cookies
     cart = request.cookies.get('cart')
     if cart:
         cart = json.loads(cart)
     else:
         cart = []
 
-    # Supprimer l'article correspondant
     cart = [item for item in cart if not (item['product_id'] == product_id and item['size'] == size)]
 
-    # Sauvegarder le panier mis à jour dans les cookies
     response = make_response(redirect('/cart'))
-    response.set_cookie('cart', json.dumps(cart), max_age=30*24*60*60)  # 30 jours
+    response.set_cookie('cart', json.dumps(cart), max_age=30*24*60*60)
     return response
-
 
 @app.route('/cart', methods=['GET'])
 def cart():
@@ -183,7 +165,6 @@ def cart():
     else:
         cart = []
 
-    # Récupérer les détails des produits à partir de l'ID des produits
     conn = get_db_connection()
     cursor = conn.cursor()
     product_details = []
@@ -207,21 +188,14 @@ def cart():
 
     return render_template('cart.html', cart=product_details)
 
-from collections import defaultdict
-
 @app.route('/boutique/<int:boutique_id>')
 def boutique(boutique_id):
     if session.get('role') != 'vendeur':
         return redirect(url_for('profile'))
-    
-    boutique = next((b for b in boutiques if b['id'] == boutique_id), None)
-    if not boutique or boutique['proprietaire_id'] != session['user_id']:
-        return "Boutique introuvable ou accès refusé", 403
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Récupérer les informations de la boutique
     cursor.execute("""
         SELECT nom, urlOrigine
         FROM Boutique
@@ -233,7 +207,6 @@ def boutique(boutique_id):
         conn.close()
         return "Boutique introuvable", 404
 
-    # Récupérer les articles vendus, triés par catégorie
     cursor.execute("""
         SELECT c.nom AS categorie, p.pkProduit, p.nom, p.prix
         FROM Produit p
@@ -243,7 +216,7 @@ def boutique(boutique_id):
     """, (boutique_id,))
     articles = cursor.fetchall()
 
-    # Organiser les articles par catégorie
+    from collections import defaultdict
     articles_par_categorie = defaultdict(list)
     for categorie, pkProduit, nom, prix in articles:
         articles_par_categorie[categorie].append({
@@ -252,7 +225,6 @@ def boutique(boutique_id):
             "prix": prix
         })
 
-    # Récupérer les réseaux sociaux de la boutique
     cursor.execute("""
         SELECT typeSocial, url
         FROM RéseauSocial
@@ -260,7 +232,6 @@ def boutique(boutique_id):
     """, (boutique_id,))
     reseaux = cursor.fetchall()
 
-    # Récupérer les 5 derniers avis sur la boutique
     cursor.execute("""
         SELECT a.note, a.commentaire, u.nom, u.prenom
         FROM Avis a
@@ -274,13 +245,11 @@ def boutique(boutique_id):
 
     conn.close()
 
-    return render_template('boutique.html', 
-                           boutique=boutique, 
-                           articles_par_categorie=articles_par_categorie, 
-                           reseaux=reseaux, 
+    return render_template('boutique.html',
+                           boutique=boutique,
+                           articles_par_categorie=articles_par_categorie,
+                           reseaux=reseaux,
                            avis=avis)
-
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -291,7 +260,6 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Vérifier si l'utilisateur existe et récupérer son rôle
         cursor.execute("""
             SELECT pkUtilisateur, role, email
             FROM Utilisateur
@@ -302,11 +270,9 @@ def login():
 
         if user:
             user_id, role, email = user
-            # Stocker le rôle dans un cookie
             session['user_id'] = user_id
             session['role'] = role
             session['email'] = email
-               # Redirection selon le rôle
             if role == 'Acheteur':
                 return redirect('/profile/acheteur')
             elif role == 'Vendeur':
@@ -315,7 +281,6 @@ def login():
                 return redirect('/admin')
             else:
                 flash('Identifiants invalides', 'danger')
-
         else:
             flash("Email ou mot de passe incorrect.", "danger")
             return render_template('login.html')
@@ -332,6 +297,8 @@ def signup():
         password = request.form['password']
         date_naissance = request.form['date_naissance']
 
+        print(f"Signup attempt: role={role}, nom={nom}, prenom={prenom}, email={email}, date_naissance={date_naissance}")
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -345,12 +312,12 @@ def signup():
             flash("Compte créé avec succès ! Vous pouvez maintenant vous connecter.", "success")
             return redirect('/login')
         except psycopg2.Error as e:
+            print(f"Database error: {e}")
             flash("Erreur lors de la création du compte : " + str(e), "danger")
         finally:
             conn.close()
 
     return render_template('signup.html')
-
 @app.route('/logout')
 def logout():
     session.clear()
@@ -360,7 +327,7 @@ def logout():
 def profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     role = session['role']
     if role == 'Acheteur':
         return redirect(url_for('profile_acheteur'))
@@ -368,18 +335,15 @@ def profile():
         return redirect(url_for('boutique', boutique_id=utilisateur_boutique_id(session['user_id'])))
     elif role == 'Admin':
         return redirect(url_for('admin_dashboard'))
-    
+
 @app.route('/profile/acheteur')
 def profile_acheteur():
-    # Vérification que l'utilisateur est connecté et a le rôle 'Acheteur'
     if 'role' not in session or session.get('role') != 'Acheteur':
-        return redirect(url_for('home'))  # Rediriger vers la page d'accueil si l'utilisateur n'est pas connecté ou n'est pas un acheteur
+        return redirect(url_for('home'))
 
-    # Connexion à la base de données pour récupérer les commandes de l'acheteur
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Récupérer les commandes de l'utilisateur connecté
     cursor.execute("""
         SELECT c.pkCommande, c.date, c.prix, c.état
         FROM Commande c
@@ -390,122 +354,581 @@ def profile_acheteur():
 
     conn.close()
 
-    # Passer les commandes récupérées et l'utilisateur (session) au template
     return render_template('profile_acheteur.html', commandes=user_commandes, user=session)
-
 
 @app.route('/admin')
 def admin_dashboard():
-    # Vérifier si l'utilisateur est un admin
-    if session.get('role') != 'Admin':  # Assurez-vous que le rôle est en majuscule et correspond à celui stocké en session
-        return redirect(url_for('profile'))  # Rediriger l'utilisateur vers son profil s'il n'est pas un admin
+    if session.get('role') != 'Admin':
+        return redirect(url_for('profile'))
 
-    # Connexion à la base de données
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Récupérer tous les utilisateurs
     cursor.execute("SELECT pkUtilisateur, prenom, nom, email, role FROM Utilisateur")
     utilisateurs = cursor.fetchall()
 
-    # Récupérer tous les articles
     cursor.execute("SELECT pkProduit, nom, prix FROM Produit")
     articles = cursor.fetchall()
 
-    # Récupérer toutes les boutiques
     cursor.execute("SELECT pkBoutique, nom FROM Boutique")
     boutiques = cursor.fetchall()
 
-    # Récupérer tous les avis
     cursor.execute("SELECT avis.fkutilisateur, avis.fkproduit, commentaire FROM Avis")
     avis = cursor.fetchall()
 
     conn.close()
 
-    # Passer les données récupérées au template
     return render_template('admin_dashboard.html', utilisateurs=utilisateurs, articles=articles, boutiques=boutiques, avis=avis)
 
-
-# Route pour supprimer un utilisateur
 @app.route('/admin/delete_utilisateur/<int:id>', methods=['GET'])
 def delete_utilisateur(id):
-    # Vérifier si l'utilisateur est un admin
     if session.get('role') != 'Admin':
         return redirect(url_for('profile'))
-    
-    # Connexion à la base de données
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Supprimer l'utilisateur
+
     cursor.execute("DELETE FROM Utilisateur WHERE pkUtilisateur = %s", (id,))
     conn.commit()
-    
-    # Fermer la connexion et rediriger vers le tableau de bord
+
     conn.close()
     return redirect(url_for('admin_dashboard'))
 
-# Route pour supprimer un article
 @app.route('/admin/delete_article/<int:id>', methods=['GET'])
 def delete_article(id):
-    # Vérifier si l'utilisateur est un admin
     if session.get('role') != 'Admin':
         return redirect(url_for('profile'))
-    
-    # Connexion à la base de données
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Supprimer l'article
+
     cursor.execute("DELETE FROM Produit WHERE pkProduit = %s", (id,))
     conn.commit()
-    
-    # Fermer la connexion et rediriger vers le tableau de bord
+
     conn.close()
     return redirect(url_for('admin_dashboard'))
 
-# Route pour supprimer une boutique
 @app.route('/admin/delete_boutique/<int:id>', methods=['GET'])
 def delete_boutique(id):
-    # Vérifier si l'utilisateur est un admin
     if session.get('role') != 'Admin':
         return redirect(url_for('profile'))
-    
-    # Connexion à la base de données
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Supprimer la boutique
+
     cursor.execute("DELETE FROM Boutique WHERE PkBoutique = %s", (id,))
     conn.commit()
-    
-    # Fermer la connexion et rediriger vers le tableau de bord
+
     conn.close()
     return redirect(url_for('admin_dashboard'))
 
-# Route pour supprimer un avis
 @app.route('/admin/delete_avis/<int:fkProduit>/<int:fkUtilisateur>', methods=['GET'])
 def delete_avis(fkProduit, fkUtilisateur):
-    # Vérifier si l'utilisateur est un admin
     if session.get('role') != 'Admin':
         return redirect(url_for('profile'))
-    
-    # Connexion à la base de données
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Supprimer l'avis en utilisant fkProduit et fkUtilisateur
+
     cursor.execute("""
-        DELETE FROM Avis 
+        DELETE FROM Avis
         WHERE fkProduit = %s AND fkUtilisateur = %s
     """, (fkProduit, fkUtilisateur))
     conn.commit()
-    
-    # Fermer la connexion et rediriger vers le tableau de bord
+
     conn.close()
     return redirect(url_for('admin_dashboard'))
 
+@app.route("/profile/info", methods=["GET"])
+def get_profile_info():
+    user_id = session.get('user_id')
 
+    query = """
+    SELECT nom, prenom, email, dateNaissance
+    FROM Utilisateur
+    WHERE pkUtilisateur = %s;
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (user_id,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if user:
+            return jsonify({
+                "success": True,
+                "user": {
+                    "nom": user[0],
+                    "prenom": user[1],
+                    "email": user[2],
+                    "dateNaissance": user[3].strftime('%Y-%m-%d')
+                }
+            })
+        return jsonify({
+            "success": False,
+            "error": "Utilisateur non trouvé"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/profile/update", methods=["POST"])
+def update_profile():
+    data = request.form
+    user_id = session.get('user_id')
+    
+    query = """
+    UPDATE Utilisateur
+    SET nom = %s, prenom = %s, email = %s
+    WHERE pkUtilisateur = %s;
+    """
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (
+            data['nom'],
+            data['prenom'],
+            data['email'],
+            user_id
+        ))
+        conn.commit()
+        
+        # If password is provided, update it
+        if data['password']:
+            update_password_query = """
+            UPDATE Utilisateur
+            SET motDePasse = %s
+            WHERE pkUtilisateur = %s;
+            """
+            cur.execute(update_password_query, (
+                data['password'],
+                user_id
+            ))
+            conn.commit()
+        
+        cur.close()
+        conn.close()
+        flash("Profil mis à jour avec succès", "success")
+        return redirect(url_for('profile_acheteur'))
+    except Exception as e:
+        flash(f"Erreur lors de la mise à jour du profil: {str(e)}", "danger")
+        return redirect(url_for('profile_acheteur'))@app.route("/profile/password", methods=["POST"])
+
+def update_password():
+    data = request.json
+    user_id = session.get('user_id')
+
+    verify_query = """
+    SELECT pkUtilisateur
+    FROM Utilisateur
+    WHERE pkUtilisateur = %s AND motDePasse = %s;
+    """
+
+    update_query = """
+    UPDATE Utilisateur
+    SET motDePasse = %s
+    WHERE pkUtilisateur = %s;
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(verify_query, (user_id, data['currentPassword']))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({
+                "success": False,
+                "error": "Mot de passe actuel incorrect"
+            })
+
+        cur.execute(update_query, (data['newPassword'], user_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Mot de passe mis à jour avec succès"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/profile/orders", methods=["GET"])
+def get_profile_orders():
+    user_id = session.get('user_id')
+
+    query = """
+    SELECT pkCommande, date, prix, état
+    FROM Commande
+    WHERE fkUtilisateur = %s
+    ORDER BY date DESC;
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (user_id,))
+        orders = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        orders_list = [{
+            "pkCommande": order[0],
+            "date": order[1].isoformat(),
+            "prix": float(order[2]),
+            "état": order[3]
+        } for order in orders]
+
+        return jsonify({
+            "success": True,
+            "orders": orders_list
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route('/cart/items', methods=["GET"])
+def get_cart_items():
+    user_id = session.get('user_id')
+
+    query = """
+    SELECT p.pkProduit, p.nom, p.prix, c.quantité, c.fkArticleTaille as taille
+    FROM Commande cmd
+    JOIN Contient c ON cmd.pkCommande = c.fkCommande
+    JOIN Produit p ON c.fkArticleProduit = p.pkProduit
+    WHERE cmd.fkUtilisateur = %s AND cmd.état = 'panier';
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (user_id,))
+        items = [
+            {
+                "pkProduit": row[0],
+                "nom": row[1],
+                "prix": float(row[2]),
+                "quantité": row[3],
+                "taille": row[4]
+            }
+            for row in cur.fetchall()
+        ]
+
+        subtotal = sum(item["prix"] * item["quantité"] for item in items)
+        shipping = 0
+        total = subtotal + shipping
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "items": items,
+            "summary": {
+                "subtotal": subtotal,
+                "shipping": shipping,
+                "total": total
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/cart/update", methods=["POST"])
+def update_cart_item():
+    data = request.json
+    user_id = session.get('user_id')
+
+    query = """
+    UPDATE Contient c
+    SET quantité = quantité + %s
+    FROM Commande cmd
+    WHERE cmd.pkCommande = c.fkCommande
+    AND cmd.fkUtilisateur = %s
+    AND cmd.état = 'panier'
+    AND c.fkArticleProduit = %s
+    AND c.fkArticleTaille = %s;
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (
+            data['change'],
+            user_id,
+            data['productId'],
+            data['size']
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/cart/remove", methods=["POST"])
+def remove_cart_item():
+    data = request.json
+    user_id = session.get('user_id')
+
+    query = """
+    DELETE FROM Contient c
+    USING Commande cmd
+    WHERE cmd.pkCommande = c.fkCommande
+    AND cmd.fkUtilisateur = %s
+    AND cmd.état = 'panier'
+    AND c.fkArticleProduit = %s
+    AND c.fkArticleTaille = %s;
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (
+            user_id,
+            data['productId'],
+            data['size']
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/cart/checkout", methods=["POST"])
+def checkout():
+    user_id = session.get('user_id')
+
+    query = """
+    UPDATE Commande
+    SET état = 'commandé'
+    WHERE fkUtilisateur = %s AND état = 'panier'
+    RETURNING pkCommande;
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (user_id,))
+        order_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "orderId": order_id
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/checkout", methods=["GET"])
+def checkout_page():
+    return send_from_directory('www', 'checkout.html')
+
+@app.route("/checkout/summary", methods=["GET"])
+def get_checkout_summary():
+    user_id = session.get('user_id')
+
+    query = """
+    SELECT p.pkProduit, p.nom, p.prix, c.quantité
+    FROM Commande cmd
+    JOIN Contient c ON cmd.pkCommande = c.fkCommande
+    JOIN Produit p ON c.fkArticleProduit = p.pkProduit
+    WHERE cmd.fkUtilisateur = %s AND cmd.état = 'panier';
+    """
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, (user_id,))
+        items = [
+            {
+                "pkProduit": row[0],
+                "nom": row[1],
+                "prix": float(row[2]),
+                "quantité": row[3]
+            }
+            for row in cur.fetchall()
+        ]
+
+        subtotal = sum(item["prix"] * item["quantité"] for item in items)
+        shipping = 10.00
+        total = subtotal + shipping
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "items": items,
+            "summary": {
+                "subtotal": subtotal,
+                "shipping": shipping,
+                "total": total
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/checkout/process", methods=["POST"])
+def process_checkout():
+    data = request.json
+    user_id = session.get('user_id')
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE Commande
+            SET état = 'commandé',
+                typePaiement = %s
+            WHERE fkUtilisateur = %s AND état = 'panier'
+            RETURNING pkCommande;
+        """, (data['paymentMethod'], user_id))
+
+        order_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "orderId": order_id,
+            "message": "Commande traitée avec succès"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/register", methods=["GET"])
+def register_page():
+    return send_from_directory('www', 'register.html')
+
+@app.route("/register", methods=["POST"])
+def register_user():
+    data = request.json
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO Adresse (rue, no, ville, codePostal, fkPays)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING pkAdresse;
+        """, (
+            data['adresseLivraison']['rue'],
+            data['adresseLivraison']['no'],
+            data['adresseLivraison']['ville'],
+            data['adresseLivraison']['codePostal'],
+            data['adresseLivraison']['fkPays']
+        ))
+        adresse_livraison_id = cur.fetchone()[0]
+
+        if data['adresseFacturation']:
+            cur.execute("""
+                INSERT INTO Adresse (rue, no, ville, codePostal, fkPays)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING pkAdresse;
+            """, (
+                data['adresseFacturation']['rue'],
+                data['adresseFacturation']['no'],
+                data['adresseFacturation']['ville'],
+                data['adresseFacturation']['codePostal'],
+                data['adresseFacturation']['fkPays']
+            ))
+            adresse_facturation_id = cur.fetchone()[0]
+        else:
+            adresse_facturation_id = adresse_livraison_id
+
+        cur.execute("""
+            INSERT INTO Utilisateur (
+                role, nom, prenom, email, dateNaissance, motDePasse,
+                fkAdresseLivraison, fkAdresseFacturation
+            )
+            VALUES ('Client', %s, %s, %s, %s, %s, %s, %s)
+            RETURNING pkUtilisateur;
+        """, (
+            data['nom'],
+            data['prenom'],
+            data['email'],
+            data['dateNaissance'],
+            data['password'],
+            adresse_livraison_id,
+            adresse_facturation_id
+        ))
+
+        user_id = cur.fetchone()[0]
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "userId": user_id,
+            "message": "Inscription réussie"
+        })
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route("/api/countries", methods=["GET"])
+def get_countries():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT pkPays, nom FROM Pays ORDER BY nom;")
+        countries = [{"pkPays": row[0], "nom": row[1]} for row in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "countries": countries
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=8080)

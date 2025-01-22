@@ -15,8 +15,12 @@
             <h3>Mes Informations</h3>
             <form action="/profile/update" method="post">
                 <div class="mb-3">
-                    <label for="name" class="form-label">Nom :</label>
-                    <input type="text" class="form-control" id="name" name="name" value="{{ user['nom'] }}" required>
+                    <label for="nom" class="form-label">Nom :</label>
+                    <input type="text" class="form-control" id="nom" name="nom" value="{{ user['nom'] }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="prenom" class="form-label">Prénom :</label>
+                    <input type="text" class="form-control" id="prenom" name="prenom" value="{{ user['prenom'] }}" required>
                 </div>
                 <div class="mb-3">
                     <label for="email" class="form-label">Email :</label>
