@@ -1,9 +1,12 @@
-from flask import Flask, render_template, jsonify, request, make_response, redirect
-import psycopg2
+from flask import Flask, render_template, jsonify, request, make_response, redirect, flash,session,url_for
 from datetime import date, timedelta
+
+import psycopg2
 import json
+import os
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24).hex()
 # Configuration de la base de données
 DB_CONFIG = {
     "dbname": "ecommerce",
@@ -261,9 +264,79 @@ def boutique(boutique_id):
 
 
 
-@app.route('/login')
+@app.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Vérifier si l'utilisateur existe et récupérer son rôle
+        cursor.execute("""
+            SELECT pkUtilisateur, role
+            FROM Utilisateur
+            WHERE email = %s AND motDePasse = %s
+        """, (email, password))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            user_id, role = user
+            # Stocker le rôle dans un cookie
+            response = make_response(redirect('/'))
+            response.set_cookie('user_role', role, max_age=30*24*60*60)  # Cookie valide 30 jours
+            response.set_cookie('user_id', str(user_id), max_age=30*24*60*60)  # Stocker aussi l'ID utilisateur
+            
+        else:
+            flash("Email ou mot de passe incorrect.", "danger")
+            return render_template('login.html')
+
+        session['email'] = email
+        session['role'] = role  
+        return redirect(url_for('home'))
     return render_template('login.html')
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        role = request.form['role']
+        nom = request.form['nom']
+        prenom = request.form['prenom']
+        email = request.form['email']
+        password = request.form['password']
+        date_naissance = request.form['date_naissance']
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Insérer un nouvel utilisateur
+            cursor.execute("""
+                INSERT INTO Utilisateur (role, nom, prenom, email, motDePasse, dateNaissance)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (role, nom, prenom, email, password, date_naissance))
+            conn.commit()
+            flash("Compte créé avec succès ! Vous pouvez maintenant vous connecter.", "success")
+            return redirect('/login')
+        except psycopg2.Error as e:
+            flash("Erreur lors de la création du compte : " + str(e), "danger")
+        finally:
+            conn.close()
+
+    return render_template('signup.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('home'))
+
+@app.route('/profile')
+def profile():
+    if 'email' not in session:
+        return redirect(url_for('login'))
+    return render_template('profile.html', email=session['email'], role=session.get('role'))
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=8080)
