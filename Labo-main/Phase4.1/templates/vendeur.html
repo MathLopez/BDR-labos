@@ -147,18 +147,18 @@
           <tbody>
             {% for produit in produits %}
             <tr>
-              <td>{{ produit.nom }}</td>
-              <td>{{ produit.description }}</td>
-              <td>{{ produit.prix }}</td>
+              <td>{{ produit[1] }}</td>
+              <td>{{ produit[2] }}</td>
+              <td>{{ produit[3] }}</td>
               <td>{{ produit.quantite }}</td>
               <td>
                 <a
-                  href="/vendeur/produit/modifier/{{ produit.id }}"
+                  href="/vendeur/produit/modifier/{{ produit[0] }}"
                   class="btn btn-sm btn-warning"
                   >Modifier</a
                 >
                 <a
-                  href="/vendeur/produit/supprimer/{{ produit.id }}"
+                  href="/vendeur/produit/supprimer/{{ produit[0] }}"
                   class="btn btn-sm btn-danger"
                   onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce produit ?');"
                   >Supprimer</a
@@ -219,11 +219,11 @@
           <tbody>
             {% for produit in produits %}
             <tr>
-              <td>{{ produit.nom }}</td>
+              <td>{{ produit[1] }}</td>
               <td>{{ produit.quantite }}</td>
               <td>
                 <form
-                  action="/vendeur/stock/modifier/{{ produit.id }}"
+                  action="/vendeur/stock/modifier/{{ produit[0] }}"
                   method="post"
                   class="d-flex align-items-center"
                 >
