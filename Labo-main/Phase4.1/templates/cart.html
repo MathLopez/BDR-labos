@@ -1,3 +1,4 @@
+<!-- Page Mon Panier -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -15,19 +16,12 @@
         <h1>Mon panier</h1>
         <div>
           <a href="/" class="btn btn-outline-secondary me-2">Home</a>
-          <a href="boutiques" class="btn btn-outline-secondary me-2"
-            >Boutiques</a
-          >
+          <a href="boutiques" class="btn btn-outline-secondary me-2">Boutiques</a>
           <a href="articles" class="btn btn-outline-secondary">Produits</a>
           {% if session.get('email') %}
-          <span class="me-3"
-            >Connecté en tant que <strong>{{ session['email'] }}</strong></span
-          >
-          <a href="/logout" class="btn btn-outline-danger me-2"
-            >Se déconnecter</a
-          >
+          <span class="me-3">Connecté en tant que <strong>{{ session['email'] }}</strong></span>
+          <a href="/logout" class="btn btn-outline-danger me-2">Se déconnecter</a>
           <a href="/profile" class="btn btn-outline-primary">Mon Profil</a>
-          <a href="/access" class="btn btn-outline-primary">Dashboard</a>
           {% else %}
           <a href="/login" class="btn btn-primary me-2">Se connecter</a>
           <a href="/signup" class="btn btn-outline-primary">Créer un compte</a>
@@ -56,20 +50,10 @@
             <td>{{ item.price }} €</td>
             <td>{{ item.total_price }} €</td>
             <td>
-              <form
-                method="post"
-                action="/remove-from-cart"
-                style="display: inline"
-              >
-                <input
-                  type="hidden"
-                  name="product_id"
-                  value="{{ item.product_id }}"
-                />
+              <form method="post" action="/remove-from-cart" style="display: inline">
+                <input type="hidden" name="product_id" value="{{ item.product_id }}" />
                 <input type="hidden" name="size" value="{{ item.size }}" />
-                <button type="submit" class="btn btn-danger btn-sm">
-                  Retirer
-                </button>
+                <button type="submit" class="btn btn-danger btn-sm">Retirer</button>
               </form>
             </td>
           </tr>
@@ -77,7 +61,7 @@
         </tbody>
       </table>
       <div class="text-end">
-        <a href="/login" class="btn btn-primary">Commander</a>
+        <a href="/checkout" class="btn btn-primary">Commander</a>
       </div>
       {% else %}
       <p class="text-center text-muted mt-4">Votre panier est vide.</p>
