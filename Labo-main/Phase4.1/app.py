@@ -33,6 +33,34 @@ def role_required(role):
         return wrapper
     return decorator
 
+def get_boutique_id_for_current_user():
+    # Vérifiez que l'utilisateur est connecté
+    if 'user_id' not in session:
+        raise Exception("Utilisateur non connecté.")
+
+    # Récupérez l'ID de l'utilisateur connecté
+    user_id = session['user_id']
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Recherchez l'ID de la boutique associée à cet utilisateur
+        cur.execute("""
+            SELECT pkBoutique
+            FROM Boutique
+            WHERE fkUtilisateur = %s
+        """, (user_id,))
+        result = cur.fetchone()
+
+        if result is None:
+            raise Exception("Aucune boutique associée à cet utilisateur.")
+
+        return result[0]  # pkBoutique
+    finally:
+        cur.close()
+        conn.close()
+
 @app.route('/')
 def home():
     conn = get_db_connection()
@@ -1012,11 +1040,25 @@ def vendeur():
     """, (session['user_id'],))
     boutique = cur.fetchone()
 
-    # Récupérer les produits de la boutique
+    if not boutique:
+        cur.close()
+        conn.close()
+        flash("Aucune boutique associée à cet utilisateur.", "danger")
+        return redirect('/')
+
+    # Récupérer les produits de la boutique avec les stocks
     cur.execute("""
-        SELECT pkProduit, nom, description, prix, sexe 
-        FROM Produit 
-        WHERE fkBoutique = %s
+        SELECT 
+            Produit.pkProduit, 
+            Produit.nom, 
+            Produit.description, 
+            Produit.prix, 
+            Produit.sexe, 
+            SUM(Article.quantiteDisponible) AS total_quantite
+        FROM Produit
+        LEFT JOIN Article ON Produit.pkProduit = Article.pkProduit
+        WHERE Produit.fkBoutique = %s
+        GROUP BY Produit.pkProduit, Produit.nom, Produit.description, Produit.prix, Produit.sexe
     """, (boutique[0],))
     produits = cur.fetchall()
 
@@ -1040,13 +1082,29 @@ def vendeur():
     """, (boutique[0],))
     avis = cur.fetchall()
 
+    # Récupérer les réseaux sociaux associés à la boutique
+    cur.execute("""
+        SELECT typeSocial, url 
+        FROM RéseauSocial
+        WHERE fkBoutique = %s
+    """, (boutique[0],))
+    reseaux_sociaux = cur.fetchall()
+    # Récupérer les types de réseaux sociaux possibles
     cur.execute("SELECT unnest(enum_range(NULL::TypeSocialEnum))")
     types_reseaux = cur.fetchall()
-    
+
     cur.close()
     conn.close()
 
-    return render_template('vendeur.html', boutique=boutique, produits=produits, commandes=commandes, avis=avis, types_reseaux=types_reseaux)
+    return render_template(
+        'vendeur.html', 
+        boutique=boutique, 
+        produits=produits, 
+        commandes=commandes, 
+        avis=avis, 
+        reseaux_sociaux=reseaux_sociaux, 
+        types_reseaux=types_reseaux
+    )
 
 # Route pour configurer la boutique
 @app.route('/vendeur/configurer', methods=['POST'])
@@ -1175,64 +1233,80 @@ def valider_commande(commande_id):
     flash("Commande validée avec succès.", "success")
     return redirect(url_for('vendeur'))
 
-@app.route('/vendeur/reseaux', methods=['GET', 'POST'])
-def gestion_reseaux_sociaux():
-    if 'user_id' not in session:
-        flash("Veuillez vous connecter.", "danger")
-        return redirect('/login')
-
-    user_id = session['user_id']
-    
+@app.route('/vendeur/reseau/ajouter', methods=['POST'])
+def ajouter_reseau():
+    # Récupération des données du formulaire
+    type_social = request.form['typeSocial']
+    url = request.form['url']
+    boutique_id = get_boutique_id_for_current_user()
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
     try:
-        # Vérifier si l'utilisateur a une boutique
-        cursor.execute("SELECT pkBoutique FROM Boutique WHERE fkUtilisateur = %s", (user_id,))
-        boutique = cursor.fetchone()
-
-        if not boutique:
-            flash("Aucune boutique associée à cet utilisateur.", "danger")
-            return redirect('/vendeur')
-
-        boutique_id = boutique[0]
-        
-        # Récupérer les types de réseaux sociaux disponibles
-        cursor.execute("SELECT unnest(enum_range(NULL::TypeSocialEnum))")
-        types_reseaux = cursor.fetchall()
-
-        if request.method == 'POST':
-            type_social = request.form['type_social']
-            url = request.form['url']
-
-            # Insérer le nouveau réseau social
-            cursor.execute("""
-                INSERT INTO RéseauSocial (typeSocial, url, fkBoutique)
-                VALUES (%s, %s, %s)
-            """, (type_social, url, boutique_id))
-            conn.commit()
-            flash("Réseau social ajouté avec succès.", "success")
-            return render_template('vendeur.html')
-
-        # Récupérer les réseaux sociaux existants
-        cursor.execute("""
-            SELECT pkRéseau, typeSocial, url 
-            FROM RéseauSocial 
-            WHERE fkBoutique = %s
-        """, (boutique_id,))
-        reseaux_sociaux = cursor.fetchall()
-
+        # Insérer un nouveau réseau social
+        cur.execute("""
+            INSERT INTO RéseauSocial (typeSocial, url, fkBoutique)
+            VALUES (%s, %s, %s)
+        """, (type_social, url, boutique_id))
+        conn.commit()
+        flash('Réseau social ajouté avec succès.', 'success')
     except Exception as e:
-        flash(f"Erreur lors de la gestion des réseaux sociaux : {e}", "danger")
-        reseaux_sociaux = []
-        types_reseaux = []
+        flash(f'Erreur lors de l’ajout : {e}', 'danger')
     finally:
+        cur.close()
         conn.close()
 
-    return render_template('vendeur.html', reseaux_sociaux=[
-        {'id': r[0], 'type_social': r[1], 'url': r[2]} for r in reseaux_sociaux
-    ], types_reseaux=[r[0] for r in types_reseaux])  # Passer les types de réseaux sociaux disponibles
+    return redirect('/vendeur')
 
+@app.route('/vendeur/reseau/modifier', methods=['POST'])
+def modifier_reseau():
+    # Récupération des données du formulaire
+    reseau_id = request.form['id']
+    new_url = request.form['url']
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Modifier l'URL du réseau social
+        cur.execute("""
+            UPDATE RéseauSocial
+            SET url = %s
+            WHERE pkRéseau = %s
+        """, (new_url, reseau_id))
+        conn.commit()
+        flash('Réseau social modifié avec succès.', 'success')
+    except Exception as e:
+        flash(f'Erreur lors de la modification : {e}', 'danger')
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect('/vendeur')
+
+@app.route('/vendeur/reseau/supprimer', methods=['POST'])
+def supprimer_reseau():
+    # Récupération de l'ID du réseau social
+    reseau_id = request.form['id']
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Supprimer le réseau social
+        cur.execute("""
+            DELETE FROM RéseauSocial
+            WHERE pkRéseau = %s
+        """, (reseau_id,))
+        conn.commit()
+        flash('Réseau social supprimé avec succès.', 'success')
+    except Exception as e:
+        flash(f'Erreur lors de la suppression : {e}', 'danger')
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect('/vendeur')
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=8080)
