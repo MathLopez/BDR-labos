@@ -272,7 +272,7 @@ def login():
             session['role'] = role
             session['email'] = email
             if role == 'Acheteur':
-                return redirect('/profile/acheteur')
+                return redirect('/profile')
             elif role == 'Vendeur':
                 return redirect('/vendeur')
             elif role == 'Admin':
@@ -1101,7 +1101,6 @@ def ajouter_produit():
         categorie_id = request.form.get('categorie')  # ID de la catégorie sélectionnée
         type_produit = request.form.get('type_produit')  # Type de produit (Chaussure, Habit, Accessoire)
 
-        # Validation des données du formulaire
         if not categorie_id:
             flash("Veuillez sélectionner une catégorie.", "error")
             return redirect('/vendeur/produit/ajouter')
@@ -1113,20 +1112,23 @@ def ajouter_produit():
         """, (nom, description, prix, sexe, categorie_id, boutique[0]))
         produit_id = cur.fetchone()[0]
 
-        # Gestion des tailles et quantités si le produit est une chaussure ou un habit
-        tailles = []
-        if type_produit == 'Chaussure':
-            tailles = [str(i) for i in range(36, 46)]
-        elif type_produit == 'Habit':
-            tailles = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
-
-        if tailles:
+        # Gestion des tailles et quantités
+        if type_produit in ['Chaussure', 'Habit']:
+            tailles = [str(i) for i in range(36, 46)] if type_produit == 'Chaussure' else ['XS', 'S', 'M', 'L', 'XL', 'XXL']
             for taille in tailles:
                 quantite = request.form.get(f'quantite_{taille}', 0)
+                if int(quantite) > 0:  # Ajouter uniquement si la quantité est > 0
+                    cur.execute("""
+                        INSERT INTO Article (pkProduit, taille, quantiteDisponible)
+                        VALUES (%s, %s, %s)
+                    """, (produit_id, taille, quantite))
+        else:  # Accessoire
+            quantite = request.form.get('quantite_accessoire', 0)
+            if int(quantite) > 0:
                 cur.execute("""
                     INSERT INTO Article (pkProduit, taille, quantiteDisponible)
                     VALUES (%s, %s, %s)
-                """, (produit_id, taille, quantite))
+                """, (produit_id, 'Unique', quantite))
 
         conn.commit()
         flash("Produit ajouté avec succès !", "success")
@@ -1135,6 +1137,7 @@ def ajouter_produit():
     cur.close()
     conn.close()
     return render_template('ajouter_produit.html', boutique=boutique, categories=categories)
+
 
 
 
