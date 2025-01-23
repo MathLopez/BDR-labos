@@ -1,43 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Connexion</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css">
-</head>
-<body>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css"
+    />
+  </head>
+  <body>
     <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <h1 class="text-center mb-4">Connexion</h1>
-                
-                <!-- Afficher les messages d'erreur -->
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}" role="alert">
-                        {{ message }}
-                    </div>
-                    {% endfor %}
-                {% endif %}
-                {% endwith %}
-                
-                <form action="/login" method="post">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email :</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Mot de passe :</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Se connecter</button>
-                </form>
+      <div class="row justify-content-center">
+        <div class="col-md-6">
+          <header
+            class="d-flex justify-content-between align-items-center mb-4"
+          >
+            <h1>Connexion</h1>
+            <div>
+              <a href="/" class="btn btn-outline-secondary me-2">Home</a>
+              <a href="boutiques" class="btn btn-outline-secondary me-2"
+                >Boutiques</a
+              >
+              <a href="articles" class="btn btn-outline-secondary">Produits</a>
+              {% if session.get('email') %}
+              <span class="me-3"
+                >Connecté en tant que
+                <strong>{{ session['email'] }}</strong></span
+              >
+              <a href="/logout" class="btn btn-outline-danger me-2"
+                >Se déconnecter</a
+              >
+              <a href="/profile" class="btn btn-outline-primary">Mon Profil</a>
+              <a href="/access" class="btn btn-outline-primary">Dashboard</a>
+              {% else %}
+              <a href="/login" class="btn btn-primary me-2">Se connecter</a>
+              <a href="/signup" class="btn btn-outline-primary"
+                >Créer un compte</a
+              >
+              {% endif %}
             </div>
+          </header>
+
+          <!-- Afficher les messages d'erreur -->
+          {% with messages = get_flashed_messages(with_categories=true) %} {% if
+          messages %} {% for category, message in messages %}
+          <div class="alert alert-{{ category }}" role="alert">
+            {{ message }}
+          </div>
+          {% endfor %} {% endif %} {% endwith %}
+
+          <form action="/login" method="post">
+            <div class="mb-3">
+              <label for="email" class="form-label">Email :</label>
+              <input
+                type="email"
+                class="form-control"
+                id="email"
+                name="email"
+                required
+              />
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Mot de passe :</label>
+              <input
+                type="password"
+                class="form-control"
+                id="password"
+                name="password"
+                required
+              />
+            </div>
+            <button type="submit" class="btn btn-primary w-100">
+              Se connecter
+            </button>
+          </form>
         </div>
+      </div>
     </div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+  </body>
 </html>

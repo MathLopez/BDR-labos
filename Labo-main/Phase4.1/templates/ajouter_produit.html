@@ -1,110 +1,117 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ajouter un Produit</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ajouter un Produit</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
-
 <body>
-    <div class="container mt-5">
-        <form action="/vendeur/produit/ajouter" method="post" class="row g-3">
-            <h3>Ajouter un produit</h3>
-        
-            <div class="col-md-6">
-                <label for="nom_produit" class="form-label">Nom :</label>
-                <input type="text" id="nom_produit" name="nom_produit" class="form-control" required>
-            </div>
-        
-            <div class="col-md-6">
-                <label for="prix_produit" class="form-label">Prix :</label>
-                <input type="number" id="prix_produit" name="prix_produit" class="form-control" step="0.01" required>
-            </div>
-        
-            <div class="col-12">
-                <label for="description_produit" class="form-label">Description :</label>
-                <textarea id="description_produit" name="description_produit" class="form-control" required></textarea>
-            </div>
-        
-            <div class="col-md-6">
-                <label for="categorie" class="form-label">Catégorie :</label>
-                <select id="categorie" name="categorie" class="form-control" required>
-                    <option value="" disabled selected>-- Sélectionnez une catégorie --</option>
-                    {% for categorie in categories %}
-                        <option value="{{ categorie[0] }}">{{ categorie[1] }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        
-            <div class="col-md-6">
-                <label for="sexe_produit" class="form-label">Genre :</label>
-                <select id="sexe_produit" name="sexe_produit" class="form-control">
-                    <option value="Homme">Homme</option>
-                    <option value="Femme">Femme</option>
-                    <option value="Unisexe" selected>Unisexe</option>
-                </select>
-            </div>
-        
-            <div class="col-12">
-                <label for="type_produit" class="form-label">Type de produit :</label>
-                <select id="type_produit" name="type_produit" class="form-control" required>
-                    <option value="Chaussure">Chaussure</option>
-                    <option value="Habit">Habit</option>
-                    <option value="Accessoire" selected>Accessoire</option>
-                </select>
-            </div>
-        
-            <div id="tailles-container" class="col-12 mt-3">
-                <h5>Tailles et Quantités :</h5>
-                <!-- Les tailles dynamiques seront générées côté backend -->
-            </div>
-        
-            <div class="col-12 mt-3">
-                <button type="submit" class="btn btn-success">Ajouter</button>
-            </div>
-        </form>        
+  <header class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <a href="/" class="btn btn-outline-secondary me-2">Home</a>
+      <a href="boutiques" class="btn btn-outline-secondary me-2">Boutiques</a>
+      <a href="articles" class="btn btn-outline-secondary">Produits</a>
+      {% if session.get('email') %}
+      <span class="me-3">Connecté en tant que <strong>{{ session['email'] }}</strong></span>
+      <a href="/logout" class="btn btn-outline-danger me-2">Se déconnecter</a>
+      <a href="/profile" class="btn btn-outline-primary">Mon Profil</a>
+      <a href="/access" class="btn btn-outline-primary">Dashboard</a>
+      {% else %}
+      <a href="/login" class="btn btn-primary me-2">Se connecter</a>
+      <a href="/signup" class="btn btn-outline-primary">Créer un compte</a>
+      {% endif %}
     </div>
+  </header>
+  <div class="container mt-5">
+    <form action="/vendeur/produit/ajouter" method="post" class="row g-3">
+      <h3>Ajouter un produit</h3>
 
-    <script>
-        function afficherTailles() {
-            var typeProduit = document.getElementById("type_produit").value;
-            var tailleSection = document.getElementById("taille_section");
-            tailleSection.innerHTML = ''; // Réinitialiser la section des tailles
+      <div class="col-md-6">
+        <label for="nom_produit" class="form-label">Nom :</label>
+        <input type="text" id="nom_produit" name="nom_produit" class="form-control" required>
+      </div>
 
-            if (typeProduit == 'Chaussure') {
-                // Créer des champs pour les tailles de chaussures (36-45)
-                for (var i = 36; i <= 45; i++) {
-                    var tailleDiv = document.createElement("div");
-                    tailleDiv.classList.add("mb-2");
-                    tailleDiv.innerHTML = `
-                        <label for="taille" class="form-label">Taille ${i} :</label>
-                        <input type="number" name="quantite_taille" class="form-control" required>
-                    `;
-                    tailleSection.appendChild(tailleDiv);
-                }
-            } else if (typeProduit == 'Habit') {
-                // Créer des champs pour les tailles de vêtements (XS, S, M, L, XL, XXL)
-                var tailles = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-                tailles.forEach(function(taille) {
-                    var tailleDiv = document.createElement("div");
-                    tailleDiv.classList.add("mb-2");
-                    tailleDiv.innerHTML = `
-                        <label for="taille" class="form-label">Taille ${taille} :</label>
-                        <input type="number" name="quantite_taille" class="form-control" required>
-                    `;
-                    tailleSection.appendChild(tailleDiv);
-                });
-            } else {
-                // Pas de tailles pour les accessoires
-                tailleSection.innerHTML = `
-                        <label for="taille" class="form-label"> Quantité:</label>
-                        <input type="number" name="quantite_taille" class="form-control" required>
-                    `;
-            }
+      <div class="col-md-6">
+        <label for="prix_produit" class="form-label">Prix :</label>
+        <input type="number" id="prix_produit" name="prix_produit" class="form-control" step="0.01" required>
+      </div>
+
+      <div class="col-12">
+        <label for="description_produit" class="form-label">Description :</label>
+        <textarea id="description_produit" name="description_produit" class="form-control" required></textarea>
+      </div>
+
+      <div class="col-md-6">
+        <label for="categorie" class="form-label">Catégorie :</label>
+        <select id="categorie" name="categorie" class="form-control" required>
+          <option value="" disabled selected>-- Sélectionnez une catégorie --</option>
+          {% for categorie in categories %}
+          <option value="{{ categorie[0] }}">{{ categorie[1] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label for="sexe_produit" class="form-label">Genre :</label>
+        <select id="sexe_produit" name="sexe_produit" class="form-control">
+          <option value="Homme">Homme</option>
+          <option value="Femme">Femme</option>
+          <option value="Unisexe" selected>Unisexe</option>
+        </select>
+      </div>
+
+      <div class="col-12">
+        <label for="type_produit" class="form-label">Type de produit :</label>
+        <select id="type_produit" name="type_produit" class="form-control" onchange="afficherTailles()" required>
+          <option value="Chaussure">Chaussure</option>
+          <option value="Habit">Habit</option>
+          <option value="Accessoire" selected>Accessoire</option>
+        </select>
+      </div>
+
+      <div id="tailles-container" class="col-12 mt-3">
+        <h5>Tailles et Quantités :</h5>
+        <div id="taille_section"></div>
+      </div>
+
+      <div class="col-12 mt-3">
+        <button type="submit" class="btn btn-success">Ajouter</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function afficherTailles() {
+      const typeProduit = document.getElementById("type_produit").value;
+      const tailleSection = document.getElementById("taille_section");
+      tailleSection.innerHTML = ""; // Réinitialiser la section des tailles
+
+      if (typeProduit === "Chaussure") {
+        for (let i = 36; i <= 45; i++) {
+          tailleSection.innerHTML += `
+            <div class="mb-2">
+              <label for="quantite_${i}" class="form-label">Taille ${i} :</label>
+              <input type="number" id="quantite_${i}" name="quantite_${i}" class="form-control" min="0" value="0">
+            </div>`;
         }
-    </script>
+      } else if (typeProduit === "Habit") {
+        const tailles = ["XS", "S", "M", "L", "XL", "XXL"];
+        tailles.forEach(taille => {
+          tailleSection.innerHTML += `
+            <div class="mb-2">
+              <label for="quantite_${taille}" class="form-label">Taille ${taille} :</label>
+              <input type="number" id="quantite_${taille}" name="quantite_${taille}" class="form-control" min="0" value="0">
+            </div>`;
+        });
+      } else {
+        tailleSection.innerHTML = `
+          <div class="mb-2">
+            <label for="quantite_accessoire" class="form-label">Quantité :</label>
+            <input type="number" id="quantite_accessoire" name="quantite_accessoire" class="form-control" min="0" value="0">
+          </div>`;
+      }
+    }
+  </script>
 </body>
-
 </html>

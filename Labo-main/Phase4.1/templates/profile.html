@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil Acheteur</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+
+        <!-- Header -->
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Mon profil</h1>
+            <div>
+                <a href="/" class="btn btn-outline-secondary me-2">Home</a>
+                <a href="boutiques" class="btn btn-outline-secondary me-2">Boutiques</a>
+                <a href="articles" class="btn btn-outline-secondary">Produits</a>
+                {% if session.get('email') %}
+                <span class="me-3">Connecté en tant que <strong>{{ session['email'] }}</strong></span>
+                <a href="/logout" class="btn btn-outline-danger me-2">Se déconnecter</a>
+                <a href="/profile" class="btn btn-outline-primary">Mon Profil</a>
+                <a href="/access" class="btn btn-outline-primary">Dashboard</a>
+                {% else %}
+                <a href="/login" class="btn btn-primary me-2">Se connecter</a>
+                <a href="/signup" class="btn btn-outline-primary">Créer un compte</a>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Welcome Section -->
+        <h2>Bienvenue, {{ session['email'] }}</h2>
+
+        <!-- Profile Form -->
+        <section class="mt-4">
+            <h3>Mes Informations</h3>
+            <form action="/profile" method="post">
+
+                <!-- User Information -->
+                <div class="mb-3">
+                    <label for="nom" class="form-label">Nom :</label>
+                    <input type="text" class="form-control" id="nom" name="nom" value="{{ user['nom'] }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="prenom" class="form-label">Prénom :</label>
+                    <input type="text" class="form-control" id="prenom" name="prenom" value="{{ user['prenom'] }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email :</label>
+                    <input type="email" class="form-control" id="email" name="email" value="{{ user['email'] }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Mot de passe :</label>
+                    <input type="password" class="form-control" id="password" name="password">
+                    <small class="text-muted">Laissez vide pour ne pas changer le mot de passe.</small>
+                </div>
+
+                <!-- Delivery Address -->
+                <h3>Adresse de livraison</h3>
+                <div class="mb-3">
+                    <label for="rue_livraison" class="form-label">Rue :</label>
+                    <input type="text" class="form-control" id="rue_livraison" name="rue_livraison" value="{{ user['adresse_livraison']['rue'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="no_livraison" class="form-label">Numéro :</label>
+                    <input type="text" class="form-control" id="no_livraison" name="no_livraison" value="{{ user['adresse_livraison']['no'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="ville_livraison" class="form-label">Ville :</label>
+                    <input type="text" class="form-control" id="ville_livraison" name="ville_livraison" value="{{ user['adresse_livraison']['ville'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="code_postal_livraison" class="form-label">Code postal :</label>
+                    <input type="text" class="form-control" id="code_postal_livraison" name="code_postal_livraison" value="{{ user['adresse_livraison']['code_postal'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="pays_livraison" class="form-label">Pays :</label>
+                    <select class="form-select" id="pays_livraison" name="pays_livraison">
+                        {% for pays in pays_liste %}
+                        <option value="{{ pays[0] }}" {% if pays[0] == user['adresse_livraison']['fkPays'] %}selected{% endif %}>
+                            {{ pays[1] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Billing Address -->
+                <h3>Adresse de facturation</h3>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="adresse_identique" onclick="copierAdresse()">
+                    <label class="form-check-label" for="adresse_identique">
+                        L'adresse de facturation est identique à l'adresse de livraison
+                    </label>
+                </div>
+                <div class="mb-3">
+                    <label for="rue_facturation" class="form-label">Rue :</label>
+                    <input type="text" class="form-control" id="rue_facturation" name="rue_facturation" value="{{ user['adresse_facturation']['rue'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="no_facturation" class="form-label">Numéro :</label>
+                    <input type="text" class="form-control" id="no_facturation" name="no_facturation" value="{{ user['adresse_facturation']['no'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="ville_facturation" class="form-label">Ville :</label>
+                    <input type="text" class="form-control" id="ville_facturation" name="ville_facturation" value="{{ user['adresse_facturation']['ville'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="code_postal_facturation" class="form-label">Code postal :</label>
+                    <input type="text" class="form-control" id="code_postal_facturation" name="code_postal_facturation" value="{{ user['adresse_facturation']['code_postal'] }}">
+                </div>
+                <div class="mb-3">
+                    <label for="pays_facturation" class="form-label">Pays :</label>
+                    <select class="form-select" id="pays_facturation" name="pays_facturation">
+                        {% for pays in pays_liste %}
+                        <option value="{{ pays[0] }}" {% if pays[0] == user['adresse_facturation']['fkPays'] %}selected{% endif %}>
+                            {{ pays[1] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-primary">Mettre à jour</button>
+            </form>
+        </section>
+
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function copierAdresse() {
+            const checkbox = document.getElementById('adresse_identique');
+            if (checkbox.checked) {
+                document.getElementById('rue_facturation').value = document.getElementById('rue_livraison').value;
+                document.getElementById('no_facturation').value = document.getElementById('no_livraison').value;
+                document.getElementById('ville_facturation').value = document.getElementById('ville_livraison').value;
+                document.getElementById('code_postal_facturation').value = document.getElementById('code_postal_livraison').value;
+            } else {
+                document.getElementById('rue_facturation').value = '';
+                document.getElementById('no_facturation').value = '';
+                document.getElementById('ville_facturation').value = '';
+                document.getElementById('code_postal_facturation').value = '';
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
