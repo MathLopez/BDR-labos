@@ -338,24 +338,21 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-@app.route('/profile')
+@app.route('/access')
 def profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
     role = session['role']
     if role == 'Acheteur':
-        return redirect(url_for('profile_acheteur'))
+        return redirect(url_for('profile'))
     elif role == 'Vendeur':
         return redirect(url_for('boutique', boutique_id=utilisateur_boutique_id(session['user_id'])))
     elif role == 'Admin':
         return redirect(url_for('admin_dashboard'))
-
-@app.route('/profile/acheteur')
+    
+@app.route('/profile')
 def profile_acheteur():
-    if 'role' not in session or session.get('role') != 'Acheteur':
-        return redirect(url_for('home'))
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -369,7 +366,7 @@ def profile_acheteur():
 
     conn.close()
 
-    return render_template('profile_acheteur.html', commandes=user_commandes, user=session)
+    return render_template('profile.html', commandes=user_commandes, user=session)
 
 @app.route('/admin')
 def admin_dashboard():

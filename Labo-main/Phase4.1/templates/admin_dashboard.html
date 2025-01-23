@@ -11,7 +11,29 @@
   </head>
   <body>
     <div class="container mt-5">
-      <h1>Tableau de bord Administrateur</h1>
+      <header class="d-flex justify-content-between align-items-center mb-4">
+        <h1>ADMIN</h1>
+        <div>
+          <a href="/" class="btn btn-outline-secondary me-2">Home</a>
+          <a href="boutiques" class="btn btn-outline-secondary me-2"
+            >Boutiques</a
+          >
+          <a href="articles" class="btn btn-outline-secondary">Produits</a>
+          {% if session.get('email') %}
+          <span class="me-3"
+            >Connecté en tant que <strong>{{ session['email'] }}</strong></span
+          >
+          <a href="/logout" class="btn btn-outline-danger me-2"
+            >Se déconnecter</a
+          >
+          <a href="/profile" class="btn btn-outline-primary">Mon Profil</a>
+          <a href="/access" class="btn btn-outline-primary">Dashboard</a>
+          {% else %}
+          <a href="/login" class="btn btn-primary me-2">Se connecter</a>
+          <a href="/signup" class="btn btn-outline-primary">Créer un compte</a>
+          {% endif %}
+        </div>
+      </header>
 
       <h2>Utilisateurs</h2>
       <table class="table">
@@ -99,52 +121,52 @@
           {% endfor %}
         </tbody>
       </table>
-     
-        <h2>Catégories</h2>
-        <table class="table">
-          <thead>
-            <tr>
-              <th scope="col">ID</th>
-              <th scope="col">Nom</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for categorie in categories %}
-            <tr>
-              <td>{{ categorie[0] }}</td>
-              <td>{{ categorie[1] }}</td>
-              <td>
-                <!-- Bouton pour supprimer une catégorie -->
-                <a
-                  href="/admin/delete_categorie/{{ categorie[0] }}"
-                  class="btn btn-danger"
-                  >Supprimer</a
-                >
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
 
-        <h2>Créer une nouvelle catégorie</h2>
-        <form action="/admin/add_categorie" method="post" class="row g-3">
-          <div class="col-md-6">
-            <label for="nom_categorie" class="form-label"
-              >Nom de la catégorie :</label
-            >
-            <input
-              type="text"
-              id="nom_categorie"
-              name="nom_categorie"
-              class="form-control"
-              required
-            />
-          </div>
-          <div class="col-md-6">
-            <button type="submit" class="btn btn-primary mt-4">Ajouter</button>
-          </div>
-        </form>
+      <h2>Catégories</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">Nom</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for categorie in categories %}
+          <tr>
+            <td>{{ categorie[0] }}</td>
+            <td>{{ categorie[1] }}</td>
+            <td>
+              <!-- Bouton pour supprimer une catégorie -->
+              <a
+                href="/admin/delete_categorie/{{ categorie[0] }}"
+                class="btn btn-danger"
+                >Supprimer</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h2>Créer une nouvelle catégorie</h2>
+      <form action="/admin/add_categorie" method="post" class="row g-3">
+        <div class="col-md-6">
+          <label for="nom_categorie" class="form-label"
+            >Nom de la catégorie :</label
+          >
+          <input
+            type="text"
+            id="nom_categorie"
+            name="nom_categorie"
+            class="form-control"
+            required
+          />
+        </div>
+        <div class="col-md-6">
+          <button type="submit" class="btn btn-primary mt-4">Ajouter</button>
+        </div>
+      </form>
 
       <h2>Avis</h2>
       <table class="table">
