@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modifier un produit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KyZXEJao2I9S5c5syMgtSzNJj8uPx9T0zho9UrbBtdIbpzjns6nDsoX5S1hd7lKh" crossorigin="anonymous">
+    <link rel="stylesheet" href="/static/style.css"> <!-- Ajoutez un chemin à votre fichier CSS -->
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Modifier le produit</h1>
+
+        <!-- Formulaire de modification du produit -->
+        <form method="POST" action="">
+            <div class="mb-3">
+                <label for="nom" class="form-label">Nom du produit</label>
+                <input type="text" class="form-control" id="nom" name="nom" value="{{ produit[0] }}" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="4" required>{{ produit[1] }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="prix" class="form-label">Prix</label>
+                <input type="number" class="form-control" id="prix" name="prix" step="0.01" value="{{ produit[2] }}" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="sexe" class="form-label">Sexe</label>
+                <select class="form-select" id="sexe" name="sexe">
+                    <option value="" {% if produit[3] is none %}selected{% endif %}>Non spécifié</option>
+                    <option value="Homme" {% if produit[3] == 'Homme' %}selected{% endif %}>Homme</option>
+                    <option value="Femme" {% if produit[3] == 'Femme' %}selected{% endif %}>Femme</option>
+                    <option value="Unisexe" {% if produit[3] == 'Unisexe' %}selected{% endif %}>Unisexe</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Mettre à jour le produit</button>
+            <a href="/vendeur" class="btn btn-secondary">Annuler</a>
+        </form>
+
+        <hr class="my-5">
+
+        <!-- Section pour visualiser et modifier les stocks -->
+        <h2 class="mb-4">Gestion des stocks par taille</h2>
+
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th scope="col">Taille</th>
+                    <th scope="col">Quantité disponible</th>
+                    <th scope="col">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for taille, quantite in stocks %}
+                <tr>
+                    <td>{{ taille }}</td>
+                    <td>
+                        <form action="/modifier_stock/{{ pkProduit }}/{{ taille }}" method="POST" class="form-inline">
+                            <input type="number" class="form-control" name="quantite" value="{{ quantite }}" min="0" required>
+                            <button type="submit" class="btn btn-warning ms-2">Modifier</button>
+                        </form>
+                    </td>
+                    <td>
+                        <form action="/supprimer_stock/{{ pkProduit }}/{{ taille }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce stock ?');">
+                            <button type="submit" class="btn btn-danger">Supprimer</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <a href="/vendeur" class="btn btn-info mt-4">Retour à la liste des produits</a>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.10.2/dist/umd/popper.min.js" integrity="sha384-EhvF2+ZxovLRjl6pHAhQzZTn07SAXnW13fX2ZZXDXy9WR6h68shlJWOSY8gG0mdw" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js" integrity="sha384-bd5Wf3hNk8U2zQMQ8QvY+E++s9TVN27C+jCmevDLl/0U8uVliACVwv6W2bmG0qkT" crossorigin="anonymous"></script>
+</body>
+</html>

@@ -1308,5 +1308,110 @@ def supprimer_reseau():
 
     return redirect('/vendeur')
 
+@app.route('/modifier_produit/<int:pkProduit>', methods=['GET', 'POST'])
+def modifier_produit(pkProduit):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if request.method == 'POST':
+        # Récupérer les données du formulaire
+        nom = request.form['nom']
+        description = request.form['description']
+        prix = request.form['prix']
+        sexe = request.form.get('sexe', None)  # Peut être vide, selon le type de produit
+
+        try:
+            # Mettre à jour les données du produit
+            cur.execute("""
+                UPDATE Produit
+                SET nom = %s, description = %s, prix = %s, sexe = %s
+                WHERE pkProduit = %s
+            """, (nom, description, prix, sexe, pkProduit))
+            conn.commit()
+
+            flash("Le produit a été mis à jour avec succès.", "success")
+            return redirect(f'/modifier_produit/{pkProduit}/')  # Redirige vers la modification du stock
+        except Exception as e:
+            conn.rollback()
+            flash(f"Une erreur s'est produite : {e}", "danger")
+    else:
+        # Récupérer les informations actuelles du produit
+        cur.execute("""
+            SELECT nom, description, prix, sexe 
+            FROM Produit
+            WHERE pkProduit = %s
+        """, (pkProduit,))
+        produit = cur.fetchone()
+
+        if not produit:
+            cur.close()
+            conn.close()
+            flash("Le produit demandé n'existe pas.", "danger")
+            return redirect('/vendeur')
+
+        # Récupérer les stocks par taille
+        cur.execute("""
+            SELECT taille, quantiteDisponible
+            FROM Article
+            WHERE pkProduit = %s
+        """, (pkProduit,))
+        stocks = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return render_template('modifier_produit.html', produit=produit, pkProduit=pkProduit, stocks=stocks)
+
+
+@app.route('/modifier_stock/<int:pkProduit>/<string:taille>', methods=['POST'])
+def modifier_stock(pkProduit, taille):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    nouvelle_quantite = request.form['quantite']
+    
+    try:
+        # Mettre à jour la quantité du stock pour cette taille
+        cur.execute("""
+            UPDATE Article
+            SET quantiteDisponible = %s
+            WHERE pkProduit = %s AND taille = %s
+        """, (nouvelle_quantite, pkProduit, taille))
+        conn.commit()
+
+        flash("Le stock a été mis à jour avec succès.", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Une erreur s'est produite : {e}", "danger")
+
+    cur.close()
+    conn.close()
+
+    return redirect(f'/modifier_produit/{pkProduit}')
+
+@app.route('/supprimer_stock/<int:pkProduit>/<string:taille>', methods=['POST'])
+def supprimer_stock(pkProduit, taille):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Supprimer le stock de cette taille
+        cur.execute("""
+            DELETE FROM Article
+            WHERE pkProduit = %s AND taille = %s
+        """, (pkProduit, taille))
+        conn.commit()
+
+        flash("Le stock a été supprimé avec succès.", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Une erreur s'est produite : {e}", "danger")
+
+    cur.close()
+    conn.close()
+
+    return redirect(f'/modifier_produit/{pkProduit}')
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=8080)
