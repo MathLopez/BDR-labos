@@ -216,34 +216,176 @@ def cart():
 
     return render_template('cart.html', cart=product_details)
 
-@app.route('/checkout')
+@app.route('/checkout', methods=['GET'])
 def checkout():
-    # Si l'utilisateur n'est pas connecté, redirige vers la page de création de compte
     if 'email' not in session:
         return redirect(url_for('signup'))
-    return render_template('checkout.html')
 
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Récupération des informations utilisateur
+        cursor.execute("""
+            SELECT pkUtilisateur, fkAdresseLivraison, fkAdresseFacturation
+            FROM Utilisateur
+            WHERE email = %s
+        """, (session['email'],))
+        user = cursor.fetchone()
+
+        if not user:
+            return redirect(url_for('signup'))
+
+        pkUtilisateur, fkAdresseLivraison, fkAdresseFacturation = user
+
+        # Vérification des adresses
+        if not fkAdresseLivraison or not fkAdresseFacturation:
+            return redirect(url_for('profile'))
+
+        # Récupération des adresses
+        cursor.execute("""
+            SELECT a.rue, a.no, a.ville, a.codePostal, p.nom, p.fraisLivraison
+            FROM Adresse a
+            JOIN Pays p ON a.fkPays = p.pkPays
+            WHERE a.pkAdresse = %s
+        """, (fkAdresseLivraison,))
+        adresse_livraison = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT a.rue, a.no, a.ville, a.codePostal, p.nom
+            FROM Adresse a
+            JOIN Pays p ON a.fkPays = p.pkPays
+            WHERE a.pkAdresse = %s
+        """, (fkAdresseFacturation,))
+        adresse_facturation = cursor.fetchone()
+
+        # Lecture du panier à partir des cookies
+        cart_cookie = request.cookies.get('cart')
+        if not cart_cookie:
+            panier = []
+        else:
+            cart = json.loads(cart_cookie)
+            # Récupérer les informations des produits en base
+            panier = []
+            for item in cart:
+                cursor.execute("""
+                    SELECT p.nom, a.taille, p.prix, %s AS quantité, p.prix * %s AS prix_total
+                    FROM Produit p
+                    JOIN Article a ON p.pkProduit = a.pkProduit
+                    WHERE p.pkProduit = %s AND a.taille = %s
+                """, (item['quantity'], item['quantity'], item['product_id'], item['size']))
+                produit = cursor.fetchone()
+                if produit:
+                    panier.append({
+                        'nom': produit[0],
+                        'taille': produit[1],
+                        'prix_unitaire': produit[2],
+                        'quantité': produit[3],
+                        'prix_total': produit[4]
+                    })
+
+        # Calcul des totaux
+        total_commande = sum([article['prix_total'] for article in panier])
+        frais_livraison = adresse_livraison[5]
+        total_a_payer = total_commande + frais_livraison
+
+    finally:
+        cursor.close()
+        conn.close()
+
+    return render_template(
+        'checkout.html',
+        adresse_livraison={
+            'rue': adresse_livraison[0],
+            'no': adresse_livraison[1],
+            'ville': adresse_livraison[2],
+            'code_postal': adresse_livraison[3],
+            'pays': adresse_livraison[4],
+        },
+        adresse_facturation={
+            'rue': adresse_facturation[0],
+            'no': adresse_facturation[1],
+            'ville': adresse_facturation[2],
+            'code_postal': adresse_facturation[3],
+            'pays': adresse_facturation[4],
+        },
+        panier=panier,
+        total_commande=total_commande,
+        frais_livraison=frais_livraison,
+        total_a_payer=total_a_payer
+    )
 
 @app.route('/confirm-order', methods=['POST'])
 def confirm_order():
     if 'email' not in session:
         return redirect(url_for('signup'))
 
-    address = request.form['address']
     payment_method = request.form['payment_method']
 
-    # Simuler l'ajout de la commande dans la base de données
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO Commande (prix, typePaiement, état, fkUtilisateur)
-        VALUES (%s, %s, %s, %s)
-    """, (100.00, payment_method, 'commandé', session['user_id']))  # Remplacez 100.00 par le prix réel
-    conn.commit()
-    conn.close()
 
-    flash("Commande confirmée avec succès !", "success")
-    return redirect(url_for('home'))
+    try:
+        # Récupération de l'utilisateur
+        cursor.execute("""
+            SELECT pkUtilisateur
+            FROM Utilisateur
+            WHERE email = %s
+        """, (session['email'],))
+        user_id = cursor.fetchone()[0]
+
+        # Lecture du panier à partir des cookies
+        cart_cookie = request.cookies.get('cart')
+        if not cart_cookie:
+            flash("Votre panier est vide.", "danger")
+            return redirect(url_for('home'))
+
+        cart = json.loads(cart_cookie)
+        total_commande = 0
+
+        # Création de la commande
+        cursor.execute("""
+            INSERT INTO Commande (prix, typePaiement, état, fkUtilisateur)
+            VALUES (0, %s, 'commandé', %s)
+            RETURNING pkCommande
+        """, (payment_method, user_id))
+        commande_id = cursor.fetchone()[0]
+
+        # Ajout des articles à la commande
+        for item in cart:
+            cursor.execute("""
+                SELECT prix
+                FROM Produit
+                WHERE pkProduit = %s
+            """, (item['product_id'],))
+            prix_unitaire = cursor.fetchone()[0]
+
+            total_commande += prix_unitaire * item['quantity']
+
+            cursor.execute("""
+                INSERT INTO Contient (fkCommande, fkArticleProduit, fkArticleTaille, quantité)
+                VALUES (%s, %s, %s, %s)
+            """, (commande_id, item['product_id'], item['size'], item['quantity']))
+
+        # Mise à jour du prix total de la commande
+        cursor.execute("""
+            UPDATE Commande
+            SET prix = %s
+            WHERE pkCommande = %s
+        """, (total_commande, commande_id))
+
+        conn.commit()
+
+        # Vider le panier (supprimer les cookies)
+        response = make_response(redirect(url_for('home')))
+        response.set_cookie('cart', '', max_age=0)
+        flash("Commande confirmée avec succès !", "success")
+        return response
+
+    finally:
+        cursor.close()
+        conn.close()
+
 
 
 @app.route('/boutique/<int:boutique_id>')

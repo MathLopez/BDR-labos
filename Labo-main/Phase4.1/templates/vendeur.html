@@ -195,7 +195,6 @@
         <table class="table table-bordered table-hover">
           <thead class="table-dark">
             <tr>
-              <th>ID Commande</th>
               <th>Client</th>
               <th>Date</th>
               <th>Total</th>
@@ -206,11 +205,10 @@
           <tbody>
             {% for commande in commandes %}
             <tr>
-              <td>{{ commande.id }}</td>
-              <td>{{ commande.client }}</td>
-              <td>{{ commande.date }}</td>
-              <td>{{ commande.total }}</td>
-              <td>{{ commande.statut }}</td>
+              <td>{{ commande[0] }}</td>
+              <td>{{ commande[1] }}</td>
+              <td>{{ commande[2] }}</td>
+              <td>{{ commande[3] }}</td>
               <td>
                 <a
                   href="/vendeur/commande/valider/{{ commande.id }}"
