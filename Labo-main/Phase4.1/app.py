@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, make_response, redirect, flash, session, url_for, send_from_directory
+from flask import Flask, render_template, request, make_response, redirect, flash, session, url_for
 from datetime import date, timedelta
 from functools import wraps
 import psycopg2
